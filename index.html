@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>laserBrio</title>
+<meta name="theme-color" content="#c4561a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--bg:#faf6f0;--card:#ffffff;--ink:#2b2118;--mute:#7a6a5a;--accent:#c4561a;--accent-d:#8f3d11;--ok:#2e7d32;--warn:#b26a00;--bad:#b3261e;--line:#e6dccf;--soft:#f3ebe0}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:760px;margin:0 auto;padding:16px 16px 40px}
+h1{font-size:26px;margin:8px 0 2px}
+.sub{color:var(--mute);margin:0 0 14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 14px}
+.card h2{font-size:18px;margin:0 0 10px;display:flex;align-items:center;gap:10px}
+.n{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;font-size:15px;flex:none}
+.btn{appearance:none;border:0;border-radius:12px;padding:12px 18px;min-height:48px;font:inherit;font-weight:600;cursor:pointer;background:var(--soft);color:var(--ink)}
+.btn:hover:not(:disabled){filter:brightness(.96)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.big{font-size:19px;min-height:56px;padding:14px 22px}
+.btn.danger{background:var(--bad);color:#fff}
+.modebtn{flex:1;min-width:200px}
+.modebtn.on{background:var(--accent);color:#fff}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.row.sp{justify-content:space-between}
+label{font-size:14px;color:var(--mute);display:block;margin-bottom:4px}
+input[type=number],select,input[type=text]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff;color:var(--ink);min-height:44px}
+input[type=range]{width:100%}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.pill{display:inline-block;padding:4px 10px;border-radius:99px;background:var(--soft);font-size:14px}
+.pill.ok{background:#e3f2e4;color:var(--ok)}
+.pill.warn{background:#fff1d6;color:var(--warn)}
+.pill.bad{background:#fde4e2;color:var(--bad)}
+.banner{border-radius:12px;padding:12px 14px;margin:0 0 14px;font-size:15px}
+.banner.warn{background:#fff1d6;color:#5d3a00}
+.banner.bad{background:#fde4e2;color:#6b1a15}
+.banner.info{background:#eaf1fb;color:#1d3b63}
+.hint{color:var(--mute);font-size:14px;margin:6px 0 0}
+.drop{border:2px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--mute);cursor:pointer;background:#fffdfa}
+.drop.over{border-color:var(--accent);background:#fff5ec}
+canvas{max-width:100%;border-radius:10px;border:1px solid var(--line);display:block;background:#e8c79a}
+.pad{display:grid;grid-template-columns:repeat(3,64px);grid-auto-rows:56px;gap:8px;justify-content:center}
+.pad .btn{padding:0;font-size:22px}
+details{margin-top:12px}
+summary{cursor:pointer;font-weight:600;color:var(--accent-d);min-height:32px}
+.bar{height:16px;border-radius:99px;background:var(--soft);overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.pick{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;max-width:320px}
+.pick button{aspect-ratio:1;border:2px solid var(--line);border-radius:8px;background:#f1dcc0;cursor:pointer;font-size:12px;color:var(--ink)}
+.pick button.sel{border-color:var(--accent);background:#e0b98a;font-weight:700}
+.sheetbtns{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.sheetbtns .btn.on{background:var(--accent);color:#fff}
+ol.steps{padding-left:22px;margin:8px 0}
+ol.steps li{margin:6px 0}
+ul.list{padding-left:22px;margin:8px 0}
+footer{margin-top:26px;text-align:center;color:var(--mute);font-size:13px;letter-spacing:.3px}
+[hidden]{display:none!important}
+body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-only="taglia"]{display:none!important}
+@media(max-width:520px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body data-mode="incidi">
+<main>
+<h1>laserBrio</h1>
+<p class="sub">Incisione e taglio laser in pochi passi · pensato per Sculpfun S9</p>
+
+<div class="banner info" id="installBox" hidden><b>Mettila sul computer.</b> <span id="installTxt">Così si apre dal desktop come un programma.</span> <button class="btn" id="btnInstall" style="margin-left:8px">Installa sul computer</button></div>
+<div class="banner bad" id="noSerial" hidden><b>Questo browser non può collegarsi al laser.</b> Apri questo file con <b>Chrome</b> o <b>Edge</b> sul computer. Puoi comunque provare l'anteprima.</div>
+<div class="banner warn" id="modeWarn" hidden><b>La "modalità laser" del laser non è attiva.</b> Senza, la potenza non si regola bene durante i movimenti. <button class="btn" id="btnFixMode" style="margin-left:8px">Attivala</button></div>
+
+<div class="row" style="margin-bottom:14px">
+  <button class="btn big modebtn on" id="modeI">Incidi un'immagine</button>
+  <button class="btn big modebtn" id="modeT">Taglia un progetto</button>
+</div>
+
+<section class="card" id="s1">
+  <h2><span class="n">1</span> Collega il laser</h2>
+  <div class="row">
+    <button class="btn primary" id="btnConnect">Collega il laser (cavo USB)</button>
+    <button class="btn" id="btnDisconnect" hidden>Scollega</button>
+    <span class="pill" id="connState">Non collegato</span>
+    <button class="btn" id="btnUnlock" hidden>Sblocca</button>
+  </div>
+  <p class="hint">Accendi il laser, collega il cavo USB e premi il pulsante. Il browser chiederà di scegliere la porta.</p>
+</section>
+
+<section class="card" id="s2" data-only="incidi">
+  <h2><span class="n">2</span> Scegli cosa incidere</h2>
+  <div class="drop" id="drop">Tocca qui per scegliere una foto o un disegno<br><small>oppure trascinala sopra questa casella</small></div>
+  <input type="file" id="file" accept="image/*" hidden>
+  <div id="imgControls" hidden style="margin-top:12px">
+    <div class="grid2">
+      <div><label for="mode">Tipo di immagine</label>
+        <select id="mode"><option value="foto">Foto (sfumature)</option><option value="disegno">Logo o disegno (bianco e nero)</option></select></div>
+      <div id="brightRow"><label for="bright">Più chiara ◀ ▶ più scura</label><input type="range" id="bright" min="-40" max="40" value="0"></div>
+      <div id="thrRow" hidden><label for="thr">Soglia del nero</label><input type="range" id="thr" min="20" max="235" value="128"></div>
+    </div>
+    <div class="grid2" style="margin-top:10px">
+      <div><label for="wMm">Larghezza (mm)</label><input type="number" id="wMm" min="5" max="400" step="1" value="60"></div>
+      <div><label for="hMm">Altezza (mm)</label><input type="number" id="hMm" min="5" max="400" step="1" value="60"></div>
+    </div>
+    <div style="margin-top:12px"><canvas id="preview" width="600" height="400"></canvas></div>
+    <p class="hint" id="info"></p>
+  </div>
+</section>
+
+<section class="card" id="s2t" data-only="taglia">
+  <h2><span class="n">2</span> Scegli il progetto</h2>
+  <p style="margin:0 0 10px"><b>Supporto telefono regolabile</b>, da tagliare in compensato chiaro e fissare al telaio del laser. Le ganasce tengono il telefono dai lati: vanno bene per iPhone, Pixel, Redmi e altri, e lasciano libera la fotocamera.</p>
+  <div class="grid2">
+    <div><label for="pT">Spessore del legno (mm)</label><input type="number" id="pT" value="3" step="0.1" min="1" max="6"></div>
+    <div><label for="pN">Strati incollati (braccio e montante)</label><input type="number" id="pN" value="4" step="1" min="3" max="8"></div>
+    <div><label for="pWr">Profilo del telaio: larghezza (mm)</label><input type="number" id="pWr" value="20" step="0.5" min="5"></div>
+    <div><label for="pHr">Profilo del telaio: altezza (mm)</label><input type="number" id="pHr" value="20" step="0.5" min="10"></div>
+    <div><label for="pwMin">Telefono: larghezza minima (mm)</label><input type="number" id="pwMin" value="60" step="1" min="40"></div>
+    <div><label for="pwMax">Telefono: larghezza massima (mm)</label><input type="number" id="pwMax" value="85" step="1" max="110"></div>
+    <div><label for="pTmax">Telefono: spessore massimo con custodia (mm)</label><input type="number" id="pTmax" value="11" step="0.5" min="5" max="20"></div>
+    <div><label for="pH">Altezza della camera sopra il telaio (mm)</label><input type="number" id="pH" value="330" step="10" min="150"></div>
+    <div><label for="pR">Sporgenza del braccio (mm)</label><input type="number" id="pR" value="180" step="5" min="60"></div>
+  </div>
+  <p class="hint">Se non hai le misure, vanno bene i valori già scritti: sono quelli di un profilo 20 × 20 mm e di legno da 3 mm. Misura il profilo con un calibro.</p>
+  <p class="hint" id="planMsg" style="color:var(--bad)"></p>
+  <div id="planBody" hidden>
+    <div class="sheetbtns" id="sheetBtns"></div>
+    <canvas id="sheetCanvas" width="600" height="600"></canvas>
+    <p class="hint" id="sheetInfo"></p>
+    <details>
+      <summary>Cosa ti serve e come si monta</summary>
+      <p style="margin:8px 0 0"><b>Materiale</b></p>
+      <ul class="list" id="hwList"></ul>
+      <p style="margin:8px 0 0"><b>Montaggio</b></p>
+      <ol class="steps" id="stepList"></ol>
+    </details>
+  </div>
+</section>
+
+<section class="card" id="s3">
+  <h2><span class="n">3</span> Scegli il materiale</h2>
+  <label for="matSel">Materiale</label>
+  <select id="matSel"></select>
+  <p class="hint" id="matNote">Valori iniziali prudenti: con la "Prova materiale" qui sotto li adatti al tuo pezzo.</p>
+  <p class="hint">Incidi e taglia sempre all'aperto o in un locale molto ventilato.</p>
+  <details data-only="incidi">
+    <summary>Impostazioni avanzate</summary>
+    <div class="grid2" style="margin-top:10px">
+      <div><label for="minP">Potenza minima (%)</label><input type="number" id="minP" min="0" max="100" step="1"></div>
+      <div><label for="maxP">Potenza massima (%)</label><input type="number" id="maxP" min="1" max="100" step="1"></div>
+      <div><label for="speed">Velocità (mm/min)</label><input type="number" id="speed" min="200" max="9000" step="100"></div>
+      <div><label for="quality">Qualità</label>
+        <select id="quality"><option value="0.15">Veloce (0,15 mm)</option><option value="0.1" selected>Normale (0,10 mm)</option><option value="0.08">Alta (0,08 mm)</option></select></div>
+      <div><label for="dirSel">Passate</label>
+        <select id="dirSel"><option value="uni" selected>Una direzione (evita il "doppio", più lenta)</option><option value="bi">Due direzioni (più veloce)</option></select></div>
+      <div><label for="revOff">Allineamento ritorno (mm)</label><input type="number" id="revOff" step="0.01" value="0"></div>
+    </div>
+  </details>
+  <details data-only="taglia" open>
+    <summary>Impostazioni di taglio</summary>
+    <div class="grid3" style="margin-top:10px">
+      <div><label for="cutSpeed">Velocità (mm/min)</label><input type="number" id="cutSpeed" min="20" max="3000" step="10" value="200"></div>
+      <div><label for="cutPasses">Passate</label><input type="number" id="cutPasses" min="1" max="20" step="1" value="5"></div>
+      <div><label for="cutPower">Potenza (%)</label><input type="number" id="cutPower" min="1" max="100" step="1" value="100"></div>
+    </div>
+    <p class="hint">Valori di partenza da verificare con la "Prova di taglio" che trovi nel passo 5.</p>
+  </details>
+  <details>
+    <summary>Area di lavoro</summary>
+    <div class="grid2" style="margin-top:10px">
+      <div><label for="areaX">Area di lavoro X (mm)</label><input type="number" id="areaX" value="400"></div>
+      <div><label for="areaY">Area di lavoro Y (mm)</label><input type="number" id="areaY" value="400"></div>
+    </div>
+  </details>
+</section>
+
+<section class="card" id="s4">
+  <h2><span class="n">4</span> Posiziona il laser sul pezzo</h2>
+  <p class="hint" style="margin-top:0" data-only="incidi">Porta la testina sull'<b>angolo in basso a sinistra</b> del punto dove vuoi incidere, lasciando almeno 5 mm dal bordo sinistro della macchina. ▲ = verso il fondo della macchina.</p>
+  <p class="hint" style="margin-top:0" data-only="taglia">Porta la testina sull'<b>angolo in basso a sinistra del foglio di legno</b>: tutto il lavoro parte da lì. Il foglio va fermato bene con nastro adesivo di carta. ▲ = verso il fondo della macchina.</p>
+  <div class="pad" style="margin:12px 0">
+    <span></span><button class="btn" data-j="0,1">▲</button><span></span>
+    <button class="btn" data-j="-1,0">◀</button><span></span><button class="btn" data-j="1,0">▶</button>
+    <span></span><button class="btn" data-j="0,-1">▼</button><span></span>
+  </div>
+  <div class="row" style="justify-content:center">
+    <label style="margin:0">Passo</label>
+    <select id="stepSel" style="width:auto"><option value="1">1 mm</option><option value="5">5 mm</option><option value="10" selected>10 mm</option><option value="50">50 mm</option></select>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <button class="btn primary" id="btnOrigin">Imposta qui l'origine</button>
+    <button class="btn" id="btnFrame">Mostra cornice (laser spento)</button>
+    <span class="pill" id="posLabel">X — · Y —</span>
+  </div>
+  <p class="hint">Metti a fuoco prima di incidere (vedi il manuale: colonnina da 20 mm).</p>
+</section>
+
+<section class="card" id="s5">
+  <h2><span class="n">5</span> <span data-only="incidi">Incidi</span><span data-only="taglia">Taglia</span></h2>
+  <div class="banner info" style="margin-bottom:12px">Indossa gli occhiali protettivi e resta vicino al laser durante tutta l'operazione. Per fermarlo subito premi <b>STOP</b> (o il tasto Esc).</div>
+  <div class="banner warn" style="margin-bottom:12px" data-only="taglia">Il taglio fa <b>più fumo e può accendere fiamme</b>. Non lasciare mai il laser da solo, tieni acqua a portata di mano e lavora all'aperto o con una finestra aperta.</div>
+  <label style="display:flex;gap:10px;align-items:flex-start;color:var(--ink);font-size:15px"><input type="checkbox" id="chkSafe" style="margin-top:4px;width:20px;height:20px"> Ho gli occhiali protettivi e resto vicino al laser</label>
+  <div class="row" style="margin-top:12px">
+    <button class="btn primary big" id="btnStart" data-only="incidi" disabled>Incidi</button>
+    <button class="btn primary big" id="btnCut" data-only="taglia" disabled>Taglia il foglio</button>
+    <button class="btn big" id="btnPause" hidden>Pausa</button>
+    <button class="btn danger big" id="btnStop" hidden>STOP</button>
+  </div>
+  <div style="margin-top:12px" id="progWrap" hidden>
+    <div class="bar"><i id="progBar"></i></div>
+    <p class="hint" id="progLabel"></p>
+  </div>
+  <p class="hint" id="msg"></p>
+
+  <details data-only="incidi">
+    <summary>Prova materiale (per trovare i valori giusti)</summary>
+    <p class="hint">Incide 25 quadratini da 6 mm (circa 38 × 38 mm) con potenza e velocità diverse, a partire dall'origine impostata nel passo 4. Poi scegli quello venuto meglio.</p>
+    <div class="row"><button class="btn" id="btnTest" disabled>Incidi la prova</button></div>
+    <p class="hint">Come sono disposti: da sinistra a destra la potenza sale (20, 40, 60, 80, 100%). Dal basso verso l'alto la velocità sale (più veloce = più chiaro).</p>
+    <div class="pick" id="pick" style="margin-top:8px"></div>
+    <p class="hint" id="pickInfo">Tocca il quadratino migliore.</p>
+    <div class="grid2">
+      <div><label for="matName">Nome del nuovo materiale</label><input type="text" id="matName" placeholder="es. Compensato 4 mm"></div>
+      <div style="display:flex;align-items:flex-end"><button class="btn" id="btnSaveMat" disabled>Salva materiale</button></div>
+    </div>
+  </details>
+
+  <details data-only="taglia">
+    <summary>Prova di taglio (per trovare quante passate servono)</summary>
+    <p class="hint">Taglia 5 quadratini da 10 mm con 2, 3, 4, 5 e 6 passate (da sinistra a destra) a partire dall'origine del passo 4. Il primo quadratino che si stacca bene indica le passate giuste: aggiungine una per sicurezza e scrivila nelle impostazioni di taglio.</p>
+    <div class="row"><button class="btn" id="btnCutTest" disabled>Taglia la prova</button></div>
+  </details>
+</section>
+
+<footer>CxAdGeM_Fp · Mk 4</footer>
+</main>
+
+<script>
+//<core>
+function fmt(n){let s=(Math.round(n*1000)/1000).toFixed(3).replace(/\.?0+$/,'');return (s===''||s==='-0')?'0':s;}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+
+// RGBA -> livelli di potenza 0..64 (0 = niente). o:{mode:'foto'|'disegno', bright:-40..40, thr:0..255}
+function levelsFromRGBA(d,cols,rows,o){
+  const L=new Uint8Array(cols*rows);
+  for(let p=0,i=0;p<L.length;p++,i+=4){
+    const a=d[i+3]/255;
+    const r=d[i]*a+255*(1-a),g=d[i+1]*a+255*(1-a),b=d[i+2]*a+255*(1-a);
+    const lum=0.299*r+0.587*g+0.114*b;
+    if(o.mode==='disegno'){L[p]=lum<o.thr?64:0;}
+    else{
+      let v=(255-lum)/255+(o.bright||0)/100;
+      v=clamp(v,0,1);
+      v=v*v*(3-2*v)*0.4+v*0.6;           // lieve aumento di contrasto
+      L[p]=v<0.03?0:1+Math.round(v*63);
+    }
+  }
+  return L;
+}
+
+// G-code raster. L=livelli, cols/rows in pixel. p:{interval,speed,minP,maxP,smax,bidir,revOffset,overscan}
+function buildRaster(L,cols,rows,p){
+  const iv=p.interval,os=p.overscan;
+  const sOf=lv=>lv===0?0:Math.round((p.minP+(p.maxP-p.minP)*((lv-1)/63))/100*p.smax);
+  const out=['G54','G21','G90','M4 S0','F'+Math.round(p.speed)];
+  let burn=0,rapid=0,rowCount=0,lastX=0,lastY=0;
+  for(let r=0;r<rows;r++){
+    const base=r*cols;
+    let a=-1,b=-1;
+    for(let c=0;c<cols;c++){if(L[base+c]){a=c;break;}}
+    if(a<0)continue;
+    for(let c=cols-1;c>=a;c--){if(L[base+c]){b=c;break;}}
+    const y=(rows-1-r+0.5)*iv;
+    const back=p.bidir&&(rowCount%2===1);
+    const off=back?p.revOffset:0;
+    // run: [startPixel,endPixel,s]
+    const runs=[];
+    let c=a;
+    while(c<=b){const lv=L[base+c];let e=c;while(e+1<=b&&L[base+e+1]===lv)e++;runs.push([c,e,sOf(lv)]);c=e+1;}
+    const x0=a*iv,x1=(b+1)*iv;
+    if(!back){
+      out.push('G0 X'+fmt(x0-os+off)+' Y'+fmt(y));
+      out.push('G1 X'+fmt(x0+off)+' S0');
+      for(const [i,j,s] of runs)out.push('X'+fmt((j+1)*iv+off)+' S'+s);
+      out.push('X'+fmt(x1+os+off)+' S0');
+      rapid+=Math.abs(x0-os-lastX)+Math.abs(y-lastY);lastX=x1+os;
+    }else{
+      out.push('G0 X'+fmt(x1+os+off)+' Y'+fmt(y));
+      out.push('G1 X'+fmt(x1+off)+' S0');
+      for(let k=runs.length-1;k>=0;k--){const [i,j,s]=runs[k];out.push('X'+fmt(i*iv+off)+' S'+s);}
+      out.push('X'+fmt(x0-os+off)+' S0');
+      rapid+=Math.abs(x1+os-lastX)+Math.abs(y-lastY);lastX=x0-os;
+    }
+    lastY=y;
+    burn+=(x1-x0)+2*os;
+    if(!p.bidir){rapid+=(x1-x0)+2*os;}
+    rowCount++;
+  }
+  out.push('M5','G0 X0 Y0');
+  const timeSec=burn/(p.speed/60)*1.12+rapid/100+3;
+  return {lines:out,timeSec:timeSec,rows:rowCount};
+}
+
+// cornice con laser spento
+function buildFrame(w,h){
+  return {lines:['G54','G21','G90','M5','F3000','G1 X0 Y0','G1 X'+fmt(w)+' Y0','G1 X'+fmt(w)+' Y'+fmt(h),'G1 X0 Y'+fmt(h),'G1 X0 Y0'],
+          timeSec:2*(w+h)/(3000/60)+3};
+}
+
+const GRID_SPEEDS=[0.5,0.75,1,1.5,2];
+const GRID_POWERS=[20,40,60,80,100];
+// griglia di prova: colonne=potenza (i), righe=velocità (j, dal basso)
+function buildGrid(speedBase,smax){
+  const size=6,gap=2,iv=0.12,os=1.5;
+  const out=['G54','G21','G90','M4 S0'];
+  let burn=0;
+  for(let j=0;j<5;j++){
+    const sp=Math.round(speedBase*GRID_SPEEDS[j]);
+    for(let i=0;i<5;i++){
+      const s=Math.round(GRID_POWERS[i]/100*smax);
+      const x0=i*(size+gap),y0=j*(size+gap),x1=x0+size;
+      out.push('F'+sp);
+      const n=Math.round(size/iv);
+      for(let k=0;k<n;k++){
+        const y=y0+(k+0.5)*iv;
+        if(k%2===0){
+          out.push('G0 X'+fmt(x0-os)+' Y'+fmt(y));out.push('G1 X'+fmt(x0)+' S0');out.push('X'+fmt(x1)+' S'+s);out.push('X'+fmt(x1+os)+' S0');
+        }else{
+          out.push('G0 X'+fmt(x1+os)+' Y'+fmt(y));out.push('G1 X'+fmt(x1)+' S0');out.push('X'+fmt(x0)+' S'+s);out.push('X'+fmt(x0-os)+' S0');
+        }
+        burn+=(size+2*os)/(sp/60);
+      }
+    }
+  }
+  out.push('M5','G0 X0 Y0');
+  return {lines:out,timeSec:burn*1.12+8};
+}
+
+// ---------- geometria e taglio (Mk 2) ----------
+function rectPts(x,y,w,h){return [[x,y],[x+w,y],[x+w,y+h],[x,y+h]];}
+function circlePts(cx,cy,r){
+  const n=Math.max(16,Math.ceil(2*Math.PI*r/0.5)),o=[];
+  for(let i=0;i<n;i++){const a=2*Math.PI*i/n;o.push([cx+r*Math.cos(a),cy+r*Math.sin(a)]);}
+  return o;
+}
+// asola con estremi tondi, da (x1,y1) a (x2,y2), raggio r
+function stadiumPts(x1,y1,x2,y2,r){
+  const dir=Math.atan2(y2-y1,x2-x1),n=Math.max(8,Math.ceil(Math.PI*r/0.5)),o=[];
+  for(let i=0;i<=n;i++){const a=dir-Math.PI/2+Math.PI*i/n;o.push([x2+r*Math.cos(a),y2+r*Math.sin(a)]);}
+  for(let i=0;i<=n;i++){const a=dir+Math.PI/2+Math.PI*i/n;o.push([x1+r*Math.cos(a),y1+r*Math.sin(a)]);}
+  return o;
+}
+function bboxOf(paths){
+  let a=1e9,b=1e9,c=-1e9,d=-1e9;
+  for(const p of paths)for(const q of p.pts){a=Math.min(a,q[0]);b=Math.min(b,q[1]);c=Math.max(c,q[0]);d=Math.max(d,q[1]);}
+  return {minx:a,miny:b,maxx:c,maxy:d};
+}
+function polyLen(pts){let s=0;for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+1)%pts.length];s+=Math.hypot(b[0]-a[0],b[1]-a[1]);}return s;}
+
+// Supporto telefono regolabile. P:{t,Wr,Hr,wMin,wMax,Tmax,H,R,n}, area:{w,h}
+function phoneStandPlan(P,area){
+  const t=P.t,n=P.n;
+  if(!(t>=1&&P.Wr>=5&&P.Hr>=10&&P.wMin>=40&&P.wMax>=P.wMin&&P.wMax<=110&&P.Tmax>=5&&P.Tmax<=20&&P.H>=150&&P.R>=60&&n>=3&&n<=8))
+    return {error:'Controlla i valori: qualcosa è vuoto o fuori misura.'};
+  const nIn=3,tol=0.2,holeR=2.8,pw=50,tw=20,aw=30,cb=20,Lj=140,lipW=3,wallT=8,footOff=16,jawEdge=25;
+  const ys=Math.max(0,P.Hr-15),boltY=P.Hr+12,ytop=P.Hr+P.H;
+  const Hp=(ytop-ys)+8;
+  const k=Math.ceil(P.Tmax/t-1e-9);
+  const wiMin=P.wMin/2+0.5,wiMax=P.wMax/2+0.5;
+  const zhMin=wiMin+footOff,zhMax=wiMax+footOff;
+  const zin=zhMin-holeR-5,zout=zhMax+holeR+5;
+  const R=P.R,Lf=cb+5+Lj+5,tabL=n*t;
+  const parts=[];
+
+  // 1) Montante (si incolla in n strati)
+  {
+    const paths=[{pts:rectPts(0,0,pw,Hp)}];
+    for(const s of [-1,1])paths.push({hole:true,pts:circlePts(pw/2+s*15,boltY-ys,holeR)});
+    paths.push({hole:true,pts:rectPts(pw/2-(tw+2*tol)/2,ytop-n*t-tol-ys,tw+2*tol,n*t+2*tol)});
+    parts.push({name:'Montante',tag:'montante',count:n,paths:paths});
+  }
+  // 2) Piastra interna
+  {
+    const h=(P.Hr+22)-ys;
+    const paths=[{pts:rectPts(0,0,pw,h)}];
+    for(const s of [-1,1])paths.push({hole:true,pts:circlePts(pw/2+s*15,boltY-ys,holeR)});
+    parts.push({name:'Piastra interna',tag:'piastra',count:nIn,paths:paths});
+  }
+  // 3) Braccio: strati di sotto (solo braccio)
+  {
+    const pts=[[-tabL,-tw/2],[0,-tw/2],[0,-aw/2],[R+cb,-aw/2],[R+cb,aw/2],[0,aw/2],[0,tw/2],[-tabL,tw/2]];
+    parts.push({name:'Braccio (strati di sotto)',tag:'braccioP',count:n-2,paths:[{pts:pts}]});
+  }
+  // 4) Braccio con culla: 2 strati di sopra
+  {
+    const pts=[[-tabL,-tw/2],[0,-tw/2],[0,-aw/2],[R,-aw/2],[R,-zout],[R+Lf,-zout],[R+Lf,-zin],[R+cb,-zin],[R+cb,zin],[R+Lf,zin],[R+Lf,zout],[R,zout],[R,aw/2],[0,aw/2],[0,tw/2],[-tabL,tw/2]];
+    const paths=[{pts:pts}];
+    const u0=R+cb+5;
+    for(const s of [-1,1])for(const uc of [u0+jawEdge,u0+Lj-jawEdge])
+      paths.push({hole:true,pts:stadiumPts(uc,s*zhMin,uc,s*zhMax,holeR)});
+    parts.push({name:'Braccio con culla (strati di sopra)',tag:'braccioF',count:2,paths:paths});
+  }
+  // 5) Ganasce: mensola e strisce
+  {
+    const jz=lipW+footOff,paths=[{pts:rectPts(0,0,Lj,jz+8)}];
+    for(const x of [jawEdge,Lj-jawEdge])paths.push({hole:true,pts:circlePts(x,jz,holeR)});
+    parts.push({name:'Ganascia: mensola',tag:'mensola',count:2,paths:paths});
+    parts.push({name:'Ganascia: striscia',tag:'striscia',count:2*k,paths:[{pts:rectPts(0,0,Lj,wallT)}]});
+  }
+
+  const sheets=packSheets(parts,area.w,area.h);
+  if(sheets.error)return {error:sheets.error};
+
+  const std=[10,12,16,20,25,30,35,40,45,50,60,70,80];
+  const pick=x=>{for(const s of std)if(s>=x)return s;return Math.ceil(x/10)*10;};
+  const Lclamp=pick(n*t+P.Wr+nIn*t+8),Ljaw=pick(t+2*t+8);
+  const hardware=[
+    '2 viti M5 da '+Lclamp+' mm con 2 dadi a galletto (fissano il supporto al telaio)',
+    '4 viti M5 da '+Ljaw+' mm con 4 dadi a galletto (fissano le ganasce)',
+    '12 rondelle M5 grandi',
+    'Colla vinilica per legno, nastro adesivo di carta per fermare i fogli',
+    'Facoltativo: feltro o gomma adesiva dove i pezzi toccano il telaio e il telefono'
+  ];
+  const steps=[
+    'Prova prima tutto su cartone (scegli "Cartone" nel passo 3): serve a controllare che i pezzi combacino.',
+    'Taglia i fogli uno alla volta: fissa il legno con nastro adesivo di carta e imposta l\'origine nell\'angolo in basso a sinistra del foglio.',
+    'Montante: incolla i '+n+' strati uno sopra l\'altro, allineando i fori e l\'asola. Piastra interna: incolla i 3 strati.',
+    'Braccio: impila gli strati "di sotto" ('+(n-2)+') e sopra i 2 strati "con culla", allineando le linguette. Incolla.',
+    'Infila le linguette del braccio nell\'asola del montante e incolla. La culla deve restare in alto.',
+    'Ganasce: su ogni mensola incolla '+k+' strisce, con il bordo interno a '+lipW+' mm dal bordo della mensola, dalla parte opposta ai fori.',
+    'Fissa al telaio: il montante sul lato esterno del profilo, la piastra interna sul lato interno, 2 viti M5 sopra il profilo con i dadi a galletto.',
+    'Appoggia le ganasce sulla culla (mensole verso il centro), infila le 4 viti nelle asole e stringi con i dadi a galletto sotto.',
+    'Prima di accendere: con il laser spento sposta a mano testina e carrello in tutta la corsa, per essere sicuro che non tocchino il supporto.'
+  ];
+  return {parts:parts,sheets:sheets.sheets,hardware:hardware,steps:steps,
+          info:{k:k,Hp:Hp,zin:zin,zout:zout,Lf:Lf,Lclamp:Lclamp,Ljaw:Ljaw}};
+}
+
+// impaginazione a scaffali sui fogli di legno (origine in basso a sinistra, margine 5 mm)
+function packSheets(parts,areaW,areaH){
+  const m=5,gap=4,W=areaW-2*m,H=areaH-2*m,items=[];
+  for(const p of parts){
+    const bb=bboxOf(p.paths),w=bb.maxx-bb.minx,h=bb.maxy-bb.miny;
+    for(let c=0;c<p.count;c++)items.push({name:p.name,tag:p.tag,w:w,h:h,bb:bb,paths:p.paths});
+  }
+  items.sort((a,b)=>b.h-a.h||b.w-a.w);
+  const sheets=[];
+  function put(s,it,x,y){
+    const ox=m+x-it.bb.minx,oy=m+y-it.bb.miny;
+    s.items.push({name:it.name,tag:it.tag,x:m+x,y:m+y,w:it.w,h:it.h,
+      paths:it.paths.map(p=>({hole:!!p.hole,pts:p.pts.map(q=>[q[0]+ox,q[1]+oy])}))});
+  }
+  for(const it of items){
+    if(it.w>W||it.h>H)return {error:'Il pezzo "'+it.name+'" ('+Math.round(it.w)+' × '+Math.round(it.h)+' mm) è più grande dell\'area di lavoro ('+Math.round(W)+' × '+Math.round(H)+' mm utili). Riduci altezza o sporgenza.'};
+    let done=false;
+    for(const s of sheets){
+      if(s.x+it.w<=W&&s.shelfY+Math.max(s.shelfH,it.h)<=H){put(s,it,s.x,s.shelfY);s.x+=it.w+gap;s.shelfH=Math.max(s.shelfH,it.h);done=true;break;}
+      const ny=s.shelfY+s.shelfH+gap;
+      if(ny+it.h<=H){s.shelfY=ny;s.shelfH=it.h;put(s,it,0,ny);s.x=it.w+gap;done=true;break;}
+    }
+    if(!done){const s={items:[],x:0,shelfY:0,shelfH:0};sheets.push(s);put(s,it,0,0);s.x=it.w+gap;s.shelfH=it.h;}
+  }
+  for(const s of sheets){
+    const holes=[],outers=[];let mx=0,my=0;
+    for(const it of s.items){
+      mx=Math.max(mx,it.x+it.w);my=Math.max(my,it.y+it.h);
+      for(const p of it.paths)(p.hole?holes:outers).push(p.pts);
+    }
+    s.cutPaths=holes.concat(outers);   // prima i fori, per ultimo il contorno
+    s.w=mx+m;s.h=my+m;
+    delete s.x;delete s.shelfY;delete s.shelfH;
+  }
+  return {sheets:sheets};
+}
+
+function pushPath(out,pts,S){
+  out.push('G0 X'+fmt(pts[0][0])+' Y'+fmt(pts[0][1]));
+  out.push('G1 X'+fmt(pts[1][0])+' Y'+fmt(pts[1][1])+' S'+S);
+  for(let i=2;i<pts.length;i++)out.push('X'+fmt(pts[i][0])+' Y'+fmt(pts[i][1]));
+  out.push('X'+fmt(pts[0][0])+' Y'+fmt(pts[0][1]));
+}
+// taglio a passate multiple: a ogni passata tutti i fori, poi i contorni
+function buildCut(paths,F,passes,pct,smax){
+  const S=Math.round(pct/100*smax),out=['G54','G21','G90','M4 S0','F'+Math.round(F)];
+  let len=0,rapid=0,lx=0,ly=0;
+  for(let ps=0;ps<passes;ps++){
+    for(const pts of paths){
+      rapid+=Math.hypot(pts[0][0]-lx,pts[0][1]-ly);
+      pushPath(out,pts,S);
+      len+=polyLen(pts);lx=pts[0][0];ly=pts[0][1];
+    }
+  }
+  out.push('M5','G0 X0 Y0');
+  return {lines:out,timeSec:len/(F/60)*1.1+rapid/100+5};
+}
+// prova di taglio: 5 quadrati da 10 mm con 2,3,4,5,6 passate
+function buildCutTest(F,pct,smax){
+  const S=Math.round(pct/100*smax),out=['G54','G21','G90','M4 S0','F'+Math.round(F)],counts=[2,3,4,5,6];
+  let len=0;
+  counts.forEach((np,i)=>{
+    const x0=i*16,pts=[[x0,0],[x0+10,0],[x0+10,10],[x0,10]];
+    for(let p=0;p<np;p++){pushPath(out,pts,S);len+=40;}
+  });
+  out.push('M5','G0 X0 Y0');
+  return {lines:out,timeSec:len/(F/60)*1.1+10,counts:counts};
+}
+
+//</core>
+
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const RX=120;
+
+/* ---------- materiali ---------- */
+const MATERIALS=[
+  {id:'ply',name:'Compensato / legno chiaro',minP:8,maxP:65,speed:2500,cut:{speed:200,passes:5,power:100}},
+  {id:'dark',name:'Legno scuro o massello',minP:10,maxP:80,speed:2000,cut:{speed:150,passes:6,power:100}},
+  {id:'card',name:'Cartone',minP:5,maxP:40,speed:4000,cut:{speed:500,passes:2,power:100}},
+  {id:'leather',name:'Pelle vera',minP:8,maxP:50,speed:3000,cut:{speed:350,passes:3,power:100}}
+];
+let customMats=[];
+try{customMats=JSON.parse(localStorage.getItem('ls_mats')||'[]');}catch(e){}
+function allMats(){return MATERIALS.concat(customMats);}
+function saveMats(){try{localStorage.setItem('ls_mats',JSON.stringify(customMats));}catch(e){}}
+function fillMats(selId){
+  const sel=$('matSel');sel.innerHTML='';
+  for(const m of allMats()){const o=document.createElement('option');o.value=m.id;o.textContent=m.name;sel.appendChild(o);}
+  if(selId)sel.value=selId;
+  applyMat();
+}
+function applyMat(){
+  const m=allMats().find(x=>x.id===$('matSel').value)||MATERIALS[0];
+  $('minP').value=m.minP;$('maxP').value=m.maxP;$('speed').value=m.speed;
+  if(m.cut){$('cutSpeed').value=m.cut.speed;$('cutPasses').value=m.cut.passes;$('cutPower').value=m.cut.power||100;}
+  $('matNote').textContent=m.id.startsWith('c_')?'Materiale salvato da una tua prova.':'Valori iniziali prudenti: con la prova (incisione o taglio) li adatti al tuo pezzo.';
+  renderPreview();renderSheets();
+}
+
+/* ---------- stato ---------- */
+const S={img:null,iw:1,ih:1,smax:1000,laserMode:null,pick:null,plan:null,sheetSel:0};
+const G={port:null,writer:null,reader:null,queue:[],inflight:[],inflightBytes:0,connected:false,state:'—',wco:[0,0,0],mpos:null,wpos:null,job:null,buf:'',enc:new TextEncoder(),dec:new TextDecoder(),poll:null,paused:false};
+const mode=()=>document.body.dataset.mode;
+
+function say(t,cls){const m=$('msg');m.textContent=t||'';m.style.color=cls==='bad'?'var(--bad)':cls==='ok'?'var(--ok)':'var(--mute)';}
+
+/* ---------- seriale ---------- */
+const hasSerial=('serial' in navigator);
+if(!hasSerial){$('noSerial').hidden=false;$('btnConnect').disabled=true;}
+
+async function connect(){
+  try{
+    const port=await navigator.serial.requestPort();
+    await port.open({baudRate:115200});
+    G.port=port;G.writer=port.writable.getWriter();G.connected=true;
+    G.queue=[];G.inflight=[];G.inflightBytes=0;G.job=null;G.buf='';
+    readLoop(port);
+    G.poll=setInterval(()=>{if(G.connected)rt(0x3f);},300);
+    refreshUI();
+    await sleep(1800);
+    rt(0x0a);
+    cmd('$$');
+    say('Collegato.','ok');
+  }catch(e){
+    say('Collegamento non riuscito: '+(e&&e.message?e.message:e),'bad');
+    G.connected=false;refreshUI();
+  }
+}
+async function disconnect(){
+  G.connected=false;clearInterval(G.poll);
+  try{await G.reader.cancel();}catch(e){}
+  try{G.writer.releaseLock();}catch(e){}
+  try{await G.port.close();}catch(e){}
+  G.port=null;G.state='—';G.job=null;refreshUI();
+}
+function onDisconnected(){
+  if(!G.connected)return;
+  G.connected=false;clearInterval(G.poll);G.job=null;G.state='—';
+  say('Il laser si è scollegato. Controlla il cavo e ricollega.','bad');refreshUI();
+}
+async function readLoop(port){
+  const reader=port.readable.getReader();G.reader=reader;
+  try{
+    for(;;){
+      const {value,done}=await reader.read();if(done)break;
+      G.buf+=G.dec.decode(value,{stream:true});
+      let i;
+      while((i=G.buf.search(/[\r\n]/))>=0){const line=G.buf.slice(0,i).trim();G.buf=G.buf.slice(i+1);if(line)onLine(line);}
+    }
+  }catch(e){}
+  finally{try{reader.releaseLock();}catch(e){}onDisconnected();}
+}
+function rt(b){if(!G.writer)return Promise.resolve();return G.writer.write(Uint8Array.of(b)).catch(()=>{});}
+function cmd(text){return new Promise(res=>{G.queue.push({text:text,cb:res});pump();});}
+
+function pump(){
+  if(!G.connected)return;
+  for(;;){
+    let text,cb=null,fromJob=false;
+    if(G.queue.length){text=G.queue[0].text;cb=G.queue[0].cb;}
+    else if(G.job&&G.job.i<G.job.lines.length){text=G.job.lines[G.job.i];fromJob=true;}
+    else break;
+    const len=text.length+1;
+    if(G.inflight.length&&G.inflightBytes+len>RX)break;
+    if(fromJob)G.job.i++;else G.queue.shift();
+    G.inflight.push({len:len,cb:cb,job:fromJob});G.inflightBytes+=len;
+    G.writer.write(G.enc.encode(text+'\n')).catch(()=>{});
+  }
+}
+
+const ERR={'error:8':'Il laser non è pronto (non è fermo).','error:9':'Il laser è bloccato: premi "Sblocca".','error:20':'Comando non riconosciuto.','error:2':'Valore non valido.','error:3':'Impostazione non valida.'};
+function onLine(line){
+  if(line==='ok'){ack(null);return;}
+  if(line.startsWith('error:')){ack(line);return;}
+  if(line.charAt(0)==='<'){onStatus(line);return;}
+  if(line.startsWith('ALARM:')){G.state='Alarm';say('Allarme del laser ('+line+'). Premi "Sblocca" e controlla la posizione.','bad');refreshUI();return;}
+  if(line.charAt(0)==='$'){
+    const m=line.match(/^\$(\d+)=([\d.\-]+)/);
+    if(m){if(m[1]==='30')S.smax=Number(m[2])||1000;if(m[1]==='32'){S.laserMode=Number(m[2])===1;refreshUI();}}
+    return;
+  }
+  if(line.startsWith('Grbl')){G.queue=[];G.inflight=[];G.inflightBytes=0;return;}
+}
+function ack(err){
+  const it=G.inflight.shift();
+  if(it){G.inflightBytes-=it.len;if(it.cb)it.cb(err);}
+  if(it&&it.job&&G.job){
+    if(err){failJob(err);return;}
+    G.job.acked++;
+    if(G.job.acked>=G.job.lines.length){finishJob();return;}
+    updateProgress();
+  }
+  pump();
+}
+function onStatus(s){
+  const parts=s.slice(1,-1).split('|');
+  G.state=parts[0].split(':')[0];
+  let hasW=false;
+  for(const p of parts.slice(1)){
+    if(p.startsWith('MPos:'))G.mpos=p.slice(5).split(',').map(Number);
+    else if(p.startsWith('WPos:')){G.wpos=p.slice(5).split(',').map(Number);hasW=true;}
+    else if(p.startsWith('WCO:'))G.wco=p.slice(4).split(',').map(Number);
+  }
+  if(!hasW&&G.mpos)G.wpos=G.mpos.map((v,i)=>v-(G.wco[i]||0));
+  refreshUI();
+}
+
+/* ---------- lavori ---------- */
+function startJob(res,label){
+  if(!G.connected){say('Prima collega il laser (passo 1).','bad');return;}
+  if(G.job)return;
+  if(G.state!=='Idle'){say('Il laser non è pronto (stato: '+stateIt(G.state)+').','bad');return;}
+  if(S.laserMode===false){say('Prima attiva la "modalità laser" (avviso in alto).','bad');return;}
+  G.job={lines:res.lines,label:label,i:0,acked:0,t0:Date.now(),timeSec:res.timeSec};
+  G.paused=false;
+  say('');updateProgress();refreshUI();pump();
+}
+function failJob(err){
+  const t=ERR[err]||('Errore del laser ('+err+').');
+  stopNow();say('Lavoro interrotto. '+t,'bad');
+}
+function finishJob(){
+  const label=G.job.label;G.job=null;
+  say(label+': finito!','ok');refreshUI();updateProgress();
+}
+async function stopNow(){
+  if(!G.connected)return;
+  G.job=null;G.paused=false;
+  await rt(0x21);await sleep(120);await rt(0x18);
+  G.queue=[];G.inflight=[];G.inflightBytes=0;
+  refreshUI();updateProgress();
+  await sleep(900);
+  if(G.connected)cmd('M5');
+}
+function stateIt(s){return ({Idle:'pronto',Run:'in azione',Hold:'in pausa',Jog:'in movimento',Alarm:'ALLARME',Door:'sportello',Check:'verifica',Home:'homing',Sleep:'riposo'})[s]||s;}
+
+/* ---------- parametri ---------- */
+function params(){
+  return {interval:Number($('quality').value),speed:Number($('speed').value),minP:Number($('minP').value),maxP:Number($('maxP').value),
+          smax:S.smax,bidir:$('dirSel').value==='bi',revOffset:Number($('revOff').value)||0,overscan:2};
+}
+function dims(){return {w:Number($('wMm').value)||0,h:Number($('hMm').value)||0};}
+function areaOK(w,h){return w<=Number($('areaX').value)&&h<=Number($('areaY').value);}
+function cutParams(){return {F:Number($('cutSpeed').value)||200,passes:Math.max(1,Math.round(Number($('cutPasses').value)||1)),pct:clamp(Number($('cutPower').value)||100,1,100)};}
+
+/* ---------- immagine ---------- */
+function makeLevels(cols,rows){
+  const cv=document.createElement('canvas');cv.width=cols;cv.height=rows;
+  const cx=cv.getContext('2d',{willReadFrequently:true});
+  cx.fillStyle='#fff';cx.fillRect(0,0,cols,rows);
+  cx.imageSmoothingQuality='high';cx.drawImage(S.img,0,0,cols,rows);
+  const d=cx.getImageData(0,0,cols,rows).data;
+  return levelsFromRGBA(d,cols,rows,{mode:$('mode').value,bright:Number($('bright').value),thr:Number($('thr').value)});
+}
+function loadFile(f){
+  if(!f)return;
+  const img=new Image();
+  img.onload=function(){
+    S.img=img;S.iw=img.naturalWidth;S.ih=img.naturalHeight;
+    $('imgControls').hidden=false;
+    const w=Math.min(80,Math.round(S.iw/10)||60);
+    $('wMm').value=w;$('hMm').value=Math.max(5,Math.round(w*S.ih/S.iw));
+    renderPreview();refreshUI();
+  };
+  img.onerror=function(){say('Non riesco ad aprire questa immagine.','bad');};
+  img.src=URL.createObjectURL(f);
+}
+let prevTimer=null;
+function renderPreview(){clearTimeout(prevTimer);prevTimer=setTimeout(doPreview,80);}
+function doPreview(){
+  if(!S.img)return;
+  const {w,h}=dims();if(w<=0||h<=0)return;
+  const pc=Math.min(500,Math.round(w/0.1)),pr=Math.max(1,Math.round(pc*h/w));
+  const L=makeLevels(pc,pr);
+  const cv=$('preview');cv.width=pc;cv.height=pr;
+  const cx=cv.getContext('2d');
+  const id=cx.createImageData(pc,pr);
+  let nonEmpty=0;
+  for(let r=0;r<pr;r++){
+    let any=false;
+    for(let c=0;c<pc;c++){
+      const lv=L[r*pc+c],i=(r*pc+c)*4;
+      const t=lv===0?0:(Number($('minP').value)+(Number($('maxP').value)-Number($('minP').value))*((lv-1)/63))/100;
+      const k=Math.min(1,t*1.15);
+      id.data[i]=232-(232-60)*k;id.data[i+1]=199-(199-35)*k;id.data[i+2]=154-(154-20)*k;id.data[i+3]=255;
+      if(lv)any=true;
+    }
+    if(any)nonEmpty++;
+  }
+  cx.putImageData(id,0,0);
+  const p=params();
+  const rows=h/p.interval,frac=nonEmpty/pr;
+  const lineT=(w+2*p.overscan)/(p.speed/60)+(p.bidir?0:(w+2*p.overscan)/100);
+  const t=Math.round(rows*frac*lineT*1.12/60);
+  let txt=fmt(w)+' × '+fmt(h)+' mm · tempo stimato circa '+(t<1?'meno di 1':t)+' min';
+  if(!areaOK(w,h))txt+=' · ATTENZIONE: più grande dell\'area di lavoro!';
+  $('info').textContent=txt;
+  $('info').style.color=areaOK(w,h)?'var(--mute)':'var(--bad)';
+}
+
+/* ---------- progetto da tagliare ---------- */
+function projParams(){
+  return {t:Number($('pT').value),Wr:Number($('pWr').value),Hr:Number($('pHr').value),wMin:Number($('pwMin').value),wMax:Number($('pwMax').value),
+          Tmax:Number($('pTmax').value),H:Number($('pH').value),R:Number($('pR').value),n:Math.round(Number($('pN').value))};
+}
+let planTimer=null;
+function renderSheets(){clearTimeout(planTimer);planTimer=setTimeout(doRenderSheets,80);}
+function fmtMin(sec){const m=Math.round(sec/60);return m>=90?(Math.floor(m/60)+' h '+(m%60)+' min'):(m+' min');}
+function doRenderSheets(){
+  if(mode()!=='taglia')return;
+  const plan=phoneStandPlan(projParams(),{w:Number($('areaX').value)||400,h:Number($('areaY').value)||400});
+  S.plan=plan;
+  $('planMsg').textContent=plan.error||'';
+  $('planBody').hidden=!!plan.error;
+  if(plan.error){refreshUI();return;}
+  if(S.sheetSel>=plan.sheets.length)S.sheetSel=0;
+  const cp=cutParams();
+  const box=$('sheetBtns');box.innerHTML='';
+  let total=0;
+  plan.sheets.forEach((sh,i)=>{
+    total+=buildCut(sh.cutPaths,cp.F,cp.passes,cp.pct,S.smax).timeSec;
+    const b=document.createElement('button');b.className='btn'+(i===S.sheetSel?' on':'');
+    b.textContent='Foglio '+(i+1);b.onclick=()=>{S.sheetSel=i;doRenderSheets();};
+    box.appendChild(b);
+  });
+  drawSheet(plan.sheets[S.sheetSel]);
+  const sh=plan.sheets[S.sheetSel],tm=buildCut(sh.cutPaths,cp.F,cp.passes,cp.pct,S.smax).timeSec;
+  $('sheetInfo').textContent='Foglio '+(S.sheetSel+1)+' di '+plan.sheets.length+': '+sh.items.length+' pezzi, serve un pezzo di legno di almeno '+Math.ceil(sh.w)+' × '+Math.ceil(sh.h)+' mm · taglio circa '+fmtMin(tm)+' (tutti i fogli: circa '+fmtMin(total)+' con '+cp.passes+' passate a '+cp.F+' mm/min).';
+  const hw=$('hwList');hw.innerHTML='';
+  for(const t of plan.hardware){const li=document.createElement('li');li.textContent=t;hw.appendChild(li);}
+  const st=$('stepList');st.innerHTML='';
+  for(const t of plan.steps){const li=document.createElement('li');li.textContent=t;st.appendChild(li);}
+  refreshUI();
+}
+function drawSheet(sh){
+  const aw=Number($('areaX').value)||400,ah=Number($('areaY').value)||400;
+  const cv=$('sheetCanvas'),sc=600/aw;
+  cv.width=600;cv.height=Math.round(ah*sc);
+  const cx=cv.getContext('2d');
+  cx.fillStyle='#faf6f0';cx.fillRect(0,0,cv.width,cv.height);
+  cx.strokeStyle='#bfae9a';cx.setLineDash([4,4]);cx.strokeRect(0.5,0.5,cv.width-1,cv.height-1);cx.setLineDash([]);
+  const X=x=>x*sc,Y=y=>cv.height-y*sc;
+  for(const it of sh.items){
+    for(const p of it.paths){
+      cx.beginPath();
+      p.pts.forEach((q,i)=>{if(i===0)cx.moveTo(X(q[0]),Y(q[1]));else cx.lineTo(X(q[0]),Y(q[1]));});
+      cx.closePath();
+      if(p.hole){cx.fillStyle='#faf6f0';cx.fill();cx.strokeStyle='#b3261e';cx.lineWidth=1;cx.stroke();}
+      else{cx.fillStyle='#e8c79a';cx.fill();cx.strokeStyle='#3c2314';cx.lineWidth=1.2;cx.stroke();}
+    }
+    if(it.w>45&&it.h>20){cx.fillStyle='#3c2314';cx.font='11px system-ui,sans-serif';cx.fillText(it.name,X(it.x)+4,Y(it.y+it.h)+13);}
+  }
+}
+
+/* ---------- interfaccia ---------- */
+function updateProgress(){
+  const wrap=$('progWrap');
+  if(!G.job){wrap.hidden=true;return;}
+  wrap.hidden=false;
+  const f=G.job.acked/G.job.lines.length;
+  $('progBar').style.width=(f*100).toFixed(1)+'%';
+  const el=(Date.now()-G.job.t0)/1000;
+  const left=Math.max(0,Math.round((f>0.02?el/f-el:G.job.timeSec)/60));
+  $('progLabel').textContent=G.job.label+': '+Math.round(f*100)+'% · circa '+left+' min rimasti';
+}
+function sheetBox(){
+  const sh=S.plan&&S.plan.sheets&&S.plan.sheets[S.sheetSel];
+  return sh?{w:Math.ceil(sh.w),h:Math.ceil(sh.h)}:null;
+}
+function refreshUI(){
+  const c=G.connected,idle=c&&G.state==='Idle'&&!G.job,run=!!G.job,cutMode=mode()==='taglia';
+  $('btnConnect').hidden=c;$('btnDisconnect').hidden=!c;
+  const pill=$('connState');
+  if(!c){pill.textContent='Non collegato';pill.className='pill';}
+  else{pill.textContent='Collegato · '+stateIt(G.state);pill.className='pill '+(G.state==='Alarm'?'bad':(G.state==='Idle'?'ok':'warn'));}
+  $('btnUnlock').hidden=!(c&&G.state==='Alarm');
+  $('modeWarn').hidden=!(c&&S.laserMode===false);
+  document.querySelectorAll('[data-j]').forEach(b=>b.disabled=!idle);
+  $('btnOrigin').disabled=!idle;
+  $('btnFrame').disabled=!idle||(cutMode?!sheetBox():!S.img);
+  $('btnTest').disabled=!idle;$('btnCutTest').disabled=!idle;
+  $('btnStart').disabled=!(idle&&S.img&&$('chkSafe').checked&&areaOK(dims().w,dims().h));
+  $('btnCut').disabled=!(idle&&sheetBox()&&$('chkSafe').checked);
+  $('btnStart').hidden=run;$('btnCut').hidden=run;
+  $('btnPause').hidden=!run;$('btnStop').hidden=!run;
+  $('btnPause').textContent=G.paused?'Riprendi':'Pausa';
+  $('posLabel').textContent=G.wpos?('X '+G.wpos[0].toFixed(1)+' · Y '+G.wpos[1].toFixed(1)):'X — · Y —';
+}
+function setMode(m){
+  document.body.dataset.mode=m;
+  $('modeI').classList.toggle('on',m==='incidi');$('modeT').classList.toggle('on',m==='taglia');
+  try{localStorage.setItem('ls_mode',m);}catch(e){}
+  if(m==='taglia')doRenderSheets();
+  refreshUI();
+}
+
+/* ---------- eventi ---------- */
+$('modeI').onclick=()=>setMode('incidi');
+$('modeT').onclick=()=>setMode('taglia');
+$('btnConnect').onclick=connect;
+$('btnDisconnect').onclick=disconnect;
+$('btnUnlock').onclick=()=>cmd('$X');
+$('btnFixMode').onclick=async()=>{await cmd('$32=1');S.laserMode=true;refreshUI();};
+const drop=$('drop');
+drop.onclick=()=>$('file').click();
+$('file').onchange=e=>loadFile(e.target.files[0]);
+['dragover','dragenter'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',e=>{if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);});
+$('mode').onchange=()=>{$('brightRow').hidden=$('mode').value!=='foto';$('thrRow').hidden=$('mode').value!=='disegno';renderPreview();};
+['bright','thr','minP','maxP','speed','quality','dirSel','revOff'].forEach(id=>$(id).addEventListener('input',()=>{renderPreview();refreshUI();}));
+['areaX','areaY'].forEach(id=>$(id).addEventListener('input',()=>{renderPreview();renderSheets();refreshUI();}));
+['pT','pN','pWr','pHr','pwMin','pwMax','pTmax','pH','pR','cutSpeed','cutPasses','cutPower'].forEach(id=>$(id).addEventListener('input',()=>{renderSheets();}));
+$('wMm').oninput=()=>{const w=Number($('wMm').value);if(w>0&&S.img)$('hMm').value=Math.max(1,Math.round(w*S.ih/S.iw*10)/10);renderPreview();refreshUI();};
+$('hMm').oninput=()=>{const h=Number($('hMm').value);if(h>0&&S.img)$('wMm').value=Math.max(1,Math.round(h*S.iw/S.ih*10)/10);renderPreview();refreshUI();};
+$('matSel').onchange=applyMat;
+$('chkSafe').onchange=refreshUI;
+document.querySelectorAll('[data-j]').forEach(b=>b.onclick=()=>{
+  const [dx,dy]=b.dataset.j.split(',').map(Number),st=Number($('stepSel').value);
+  cmd('$J=G91 G21 X'+fmt(dx*st)+' Y'+fmt(dy*st)+' F3000');
+});
+$('btnOrigin').onclick=async()=>{await cmd('G54');await cmd('G10 L20 P1 X0 Y0');say('Origine impostata qui.','ok');};
+$('btnFrame').onclick=()=>{
+  if(mode()==='taglia'){
+    const b=sheetBox();if(!b)return;
+    if(!areaOK(b.w,b.h)){say('Il foglio è più grande dell\'area di lavoro.','bad');return;}
+    startJob(buildFrame(b.w,b.h),'Cornice del foglio');return;
+  }
+  const d=dims();if(!areaOK(d.w,d.h)){say('L\'immagine è più grande dell\'area di lavoro.','bad');return;}
+  startJob(buildFrame(d.w,d.h),'Cornice');
+};
+$('btnStart').onclick=()=>{
+  if(!S.img)return;
+  const d=dims(),p=params();
+  if(!areaOK(d.w,d.h)){say('L\'immagine è più grande dell\'area di lavoro.','bad');return;}
+  const cols=Math.round(d.w/p.interval),rows=Math.round(d.h/p.interval);
+  say('Preparo il lavoro…');
+  setTimeout(()=>{
+    const L=makeLevels(cols,rows);
+    const res=buildRaster(L,cols,rows,p);
+    if(res.rows===0){say('Non c\'è niente da incidere: l\'immagine risulta tutta bianca.','bad');return;}
+    startJob(res,'Incisione');
+  },30);
+};
+$('btnCut').onclick=()=>{
+  const sh=S.plan&&S.plan.sheets&&S.plan.sheets[S.sheetSel];if(!sh)return;
+  if(!areaOK(sh.w,sh.h)){say('Il foglio è più grande dell\'area di lavoro.','bad');return;}
+  const cp=cutParams();
+  startJob(buildCut(sh.cutPaths,cp.F,cp.passes,cp.pct,S.smax),'Taglio del foglio '+(S.sheetSel+1));
+};
+$('btnCutTest').onclick=()=>{const cp=cutParams();startJob(buildCutTest(cp.F,cp.pct,S.smax),'Prova di taglio');};
+$('btnPause').onclick=async()=>{if(G.paused){await rt(0x7e);G.paused=false;}else{await rt(0x21);G.paused=true;}refreshUI();};
+$('btnStop').onclick=()=>{stopNow();say('Fermato. Prima di ripartire reimposta l\'origine (passo 4).','bad');};
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&G.job){stopNow();say('Fermato. Prima di ripartire reimposta l\'origine (passo 4).','bad');}});
+window.addEventListener('beforeunload',e=>{if(G.job){e.preventDefault();e.returnValue='';}});
+setInterval(()=>{if(G.job)updateProgress();},1000);
+
+/* ---------- prova materiale ---------- */
+const pick=$('pick');
+for(let j=4;j>=0;j--)for(let i=0;i<5;i++){
+  const b=document.createElement('button');b.dataset.i=i;b.dataset.j=j;b.textContent='';b.title='Potenza '+GRID_POWERS[i]+'%';
+  b.onclick=()=>{
+    document.querySelectorAll('#pick button').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');
+    const sp=Math.round(Number($('speed').value)*GRID_SPEEDS[j]);
+    S.pick={p:GRID_POWERS[i],sp:sp};
+    $('pickInfo').textContent='Scelto: potenza '+GRID_POWERS[i]+'% e velocità '+sp+' mm/min.';
+    $('btnSaveMat').disabled=false;
+  };
+  pick.appendChild(b);
+}
+$('btnTest').onclick=()=>startJob(buildGrid(Number($('speed').value),S.smax),'Prova materiale');
+$('btnSaveMat').onclick=()=>{
+  if(!S.pick)return;
+  const name=($('matName').value||'').trim()||'Materiale '+(customMats.length+1);
+  const m={id:'c_'+Date.now(),name:name,minP:Math.max(1,Math.round(S.pick.p*0.15)),maxP:S.pick.p,speed:S.pick.sp};
+  customMats.push(m);saveMats();fillMats(m.id);
+  $('matName').value='';say('Materiale "'+name+'" salvato.','ok');
+};
+
+fillMats('ply');
+let m0='incidi';try{m0=localStorage.getItem('ls_mode')||'incidi';}catch(e){}
+setMode(m0==='taglia'?'taglia':'incidi');
+refreshUI();
+})();
+</script>
+<script>
+(function(){
+  var box=document.getElementById('installBox'),btn=document.getElementById('btnInstall'),txt=document.getElementById('installTxt');
+  var web=/^https?:$/.test(location.protocol),dp=null;
+  var standalone=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone;
+  if(web&&!standalone)box.hidden=false;
+  if(web&&'serviceWorker' in navigator){try{navigator.serviceWorker.register('sw.js').catch(function(){});}catch(e){}}
+  window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();dp=e;});
+  window.addEventListener('appinstalled',function(){box.hidden=true;dp=null;});
+  btn.addEventListener('click',function(){
+    if(dp){dp.prompt();dp.userChoice.then(function(){dp=null;});}
+    else{txt.innerHTML='Nel browser clicca sull\'icona <b>Installa</b> in fondo alla barra dell\'indirizzo (oppure menu ⋮ → <b>Trasmetti, salva e condividi</b> → <b>Installa pagina come app</b>). Serve Chrome o Edge.';btn.hidden=true;}
+  });
+})();
+</script>
+</body>
+</html>

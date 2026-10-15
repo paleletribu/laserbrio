@@ -177,6 +177,28 @@ function adopt(s){
   cancelAnimationFrame(st.raf);st.raf=requestAnimationFrame(frame);
   save();ui();
 }
+async function check(){
+  const m=$('chkMsg'),v=$('camVid');m.style.color='var(--mute)';m.textContent='';
+  const fail=x=>{m.style.color='var(--bad)';m.textContent=x;};
+  if(!st.stream||!v.videoWidth)return fail('Prima accendi la camera e fai vedere il pezzo.');
+  if(!st.Hb2i)return fail('Prima segna i 4 angoli (calibrazione).');
+  const job=A.job();if(!job)return fail('Prima scegli un\'immagine o un progetto.');
+  try{if(!window.Check)await loadJs('controllo.js');}catch(e){return fail('Non riesco a caricare il controllo: serve internet.');}
+  m.textContent='Analizzo la foto…';
+  await new Promise(r=>setTimeout(r,30));
+  const W=v.videoWidth,H=v.videoHeight,c=document.createElement('canvas');c.width=W;c.height=H;
+  const x=c.getContext('2d');x.drawImage(v,0,0);
+  let R;
+  try{R=Check.analyze({frame:x.getImageData(0,0,W,H).data,W,H,b2c,rw:st.rw,rh:st.rh,ox:st.ox,oy:st.oy,job});}
+  catch(e){return fail('Non sono riuscito ad analizzare la foto ('+(e&&e.message)+').');}
+  if(R.err)return fail(R.err);
+  m.textContent='';
+  Check.draw(R,$('chkCv'));$('chkCv').hidden=false;$('chkSave').hidden=false;
+  const ul=$('chkList');ul.innerHTML='';
+  const ic={ok:'✔ ',bad:'✖ ',fix:'→ ',warn:'⚠ ',info:'ℹ '},co={ok:'var(--ok)',bad:'var(--bad)',fix:'var(--accent-d)',warn:'var(--warn)',info:'var(--mute)'};
+  for(const it of Check.report(R)){const li=document.createElement('li');li.textContent=ic[it.t]+it.m;li.style.color=co[it.t];ul.appendChild(li);}
+  $('chkCv').scrollIntoView({block:'nearest'});
+}
 async function phone(){
   stop(true);msg('');
   if(!/^https?:$/.test(location.protocol)){msg('Il collegamento col telefono funziona solo aprendo l\'app dal suo indirizzo internet.',true);return;}
@@ -272,6 +294,8 @@ function bind(){
   cv.onpointerup=up;cv.onpointercancel=up;
   $('camStart').onclick=start;
   $('telStart').onclick=phone;
+  $('chkRun').onclick=check;
+  $('chkSave').onclick=()=>{$('chkCv').toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='laserbrio-controllo-'+new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')+'.png';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);},'image/png');};
   $('telCancel').onclick=()=>{if(st.peerH){st.peerH.stop();st.peerH=null;}$('telBox').hidden=true;};
   $('camStop').onclick=()=>stop();
   $('camDev').onchange=()=>{save();if(st.stream)start();};

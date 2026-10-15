@@ -80,10 +80,10 @@ function buildOv(){
     st.ovHas=true;
   }else if(job.kind==='cut'&&job.items){
     for(const it of job.items)for(const p of it.paths){
-      const pts=subdiv(p.pts,true).map(q=>b2c(q[0]+st.ox,q[1]+st.oy)).filter(ok);
-      if(pts.length<3)continue;
-      c.beginPath();pts.forEach((q,i)=>i?c.lineTo(q[0],q[1]):c.moveTo(q[0],q[1]));c.closePath();
-      if(!p.hole){c.fillStyle='rgba(34,255,136,.16)';c.fill();}
+      const pts=subdiv(p.pts,!p.open).map(q=>b2c(q[0]+st.ox,q[1]+st.oy)).filter(ok);
+      if(pts.length<(p.open?2:3))continue;
+      c.beginPath();pts.forEach((q,i)=>i?c.lineTo(q[0],q[1]):c.moveTo(q[0],q[1]));if(!p.open)c.closePath();
+      if(!p.hole&&!p.open){c.fillStyle='rgba(34,255,136,.16)';c.fill();}
       c.lineWidth=lw+2;c.strokeStyle='rgba(0,0,0,.7)';c.stroke();
       c.lineWidth=lw;c.strokeStyle=p.hole?'#ff4fd8':'#22ff88';c.stroke();
     }

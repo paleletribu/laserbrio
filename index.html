@@ -65,7 +65,9 @@ footer{margin-top:26px;text-align:center;color:var(--mute);font-size:13px;letter
 .chk{display:inline-flex;align-items:center;gap:6px;margin:0;font-size:15px;color:var(--ink)}
 .chk input{width:20px;height:20px}
 .btn.on{background:var(--accent);color:#fff}
-#camCv{width:100%;height:auto;touch-action:none;cursor:crosshair;background:#111;border-color:#111}
+#camWrap{position:relative;background:#111;border-radius:10px;overflow:hidden;min-height:120px}
+#camVid{display:block;width:100%;height:auto;background:#111}
+#camCv{position:absolute;left:0;top:0;width:100%;height:100%;touch-action:none;cursor:crosshair;background:transparent;border:0;border-radius:0}
 #camStage{margin-top:10px}
 [hidden]{display:none!important}
 body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-only="taglia"]{display:none!important}
@@ -219,7 +221,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
     <p class="hint">Vedi il piano di lavoro dal vivo e ci sovrapponi il disegno, così capisci dove cade sul legno prima di tagliare. Va bene la Sculpfun CAM500 o qualunque webcam USB (oppure la camera del telefono, aprendo questa pagina dal telefono).</p>
     <div class="grid2" style="margin-top:10px">
       <div><label for="camDev">Camera</label><select id="camDev"><option value="">Quella predefinita</option></select></div>
-      <div><label for="camRes">Qualità</label><select id="camRes"><option value="max">Massima</option><option value="1080">1920 × 1080</option><option value="720">1280 × 720</option></select></div>
+      <div><label for="camRes">Qualità</label><select id="camRes"><option value="1080">1920 × 1080</option><option value="max">Massima (5 MP)</option><option value="720">1280 × 720</option></select></div>
     </div>
     <div class="row" style="margin-top:10px">
       <button class="btn primary" id="camStart">Accendi la camera</button>
@@ -229,8 +231,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
     </div>
     <p class="hint" id="camMsg"></p>
     <div id="camStage" hidden>
-      <canvas id="camCv" width="16" height="9"></canvas>
-      <video id="camVid" muted playsinline style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none"></video>
+      <div id="camWrap"><video id="camVid" autoplay muted playsinline></video><canvas id="camCv" width="16" height="9"></canvas></div>
       <p class="hint" id="camStep"></p>
       <ol class="steps hint">
         <li>Metti sul piano un pezzo rettangolare di cui conosci le misure (il foglio di legno, un cartone, un foglio A4). L'angolo "in basso a sinistra" è quello vicino a te, a sinistra, guardando la macchina dal tuo lato.</li>
@@ -304,7 +305,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer>CxAdGeM_Fp · Mk 6</footer>
+<footer>CxAdGeM_Fp · Mk 7</footer>
 </main>
 
 <script>

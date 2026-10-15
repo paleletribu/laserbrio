@@ -101,7 +101,7 @@ function frame(){
   }
   if(cv.width>2&&v.readyState>=2){
     const c=cv.getContext('2d'),W=st.W,lw=Math.max(2,W/600),r=Math.max(9,W/110);
-    c.drawImage(v,0,0,W,st.H);
+    c.clearRect(0,0,W,st.H);
     if(st.Hb2i){
       if(st.ovDirty)buildOv();
       if(st.show&&st.ovHas){c.globalAlpha=st.op;c.drawImage(st.ov,0,0);c.globalAlpha=1;}
@@ -153,7 +153,7 @@ function ui(){
   else if(st.mode==='move')t='Trascina sul video per spostare il disegno. I numeri qui sotto dicono di quanti mm (X, Y) parte dall\'angolo in basso a sinistra del riferimento. Il pallino rosso 0,0 è dove deve stare il laser per iniziare.';
   else t='Puoi trascinare gli angoli gialli per sistemarli. Se a metà lato la linea gialla non segue il bordo vero, muovi "Correzione dell\'obiettivo".';
   $('camStep').textContent=on?t:'';
-  if(on&&st.W){const s=$('camStream');if(s)s.textContent='Immagine '+st.W+' × '+st.H;}
+  if(on){const s=$('camStream');if(s)s.textContent=(st.label?st.label+' · ':'')+(st.W?st.W+' × '+st.H:'in attesa dell\'immagine…');}
 }
 async function listDevices(){
   try{
@@ -185,10 +185,14 @@ async function start(){
   const v=$('camVid');v.srcObject=st.stream;
   try{await v.play();}catch(e){}
   await listDevices();
-  const id=st.stream.getVideoTracks()[0].getSettings().deviceId;
+  const trk=st.stream.getVideoTracks()[0],id=trk.getSettings().deviceId;st.label=trk.label||'';
   if(id&&[...$('camDev').options].some(o=>o.value===id))$('camDev').value=id;
   save();ui();
   st.raf=requestAnimationFrame(frame);
+  const s0=st.stream;
+  setTimeout(()=>{
+    if(st.stream===s0&&!$('camVid').videoWidth)msg('La camera è accesa ma non arriva nessuna immagine. Prova a scegliere "1280 × 720" in "Qualità", oppure scollega e ricollega il cavo USB.',true);
+  },4000);
 }
 function stop(quiet){
   cancelAnimationFrame(st.raf);

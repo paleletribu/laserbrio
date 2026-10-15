@@ -64,6 +64,9 @@ footer{margin-top:26px;text-align:center;color:var(--mute);font-size:13px;letter
 #v3d canvas{border:0;border-radius:0;max-width:none;background:transparent;touch-action:none}
 .chk{display:inline-flex;align-items:center;gap:6px;margin:0;font-size:15px;color:var(--ink)}
 .chk input{width:20px;height:20px}
+.btn.on{background:var(--accent);color:#fff}
+#camCv{width:100%;height:auto;touch-action:none;cursor:crosshair;background:#111;border-color:#111}
+#camStage{margin-top:10px}
 [hidden]{display:none!important}
 body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-only="taglia"]{display:none!important}
 @media(max-width:520px){.grid2{grid-template-columns:1fr}}
@@ -211,6 +214,57 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
     <span class="pill" id="posLabel">X — · Y —</span>
   </div>
   <p class="hint">Metti a fuoco prima di incidere (vedi il manuale: colonnina da 20 mm).</p>
+  <details id="camBox">
+    <summary>Usa la camera (CAM500 o altra webcam)</summary>
+    <p class="hint">Vedi il piano di lavoro dal vivo e ci sovrapponi il disegno, così capisci dove cade sul legno prima di tagliare. Va bene la Sculpfun CAM500 o qualunque webcam USB (oppure la camera del telefono, aprendo questa pagina dal telefono).</p>
+    <div class="grid2" style="margin-top:10px">
+      <div><label for="camDev">Camera</label><select id="camDev"><option value="">Quella predefinita</option></select></div>
+      <div><label for="camRes">Qualità</label><select id="camRes"><option value="max">Massima</option><option value="1080">1920 × 1080</option><option value="720">1280 × 720</option></select></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn primary" id="camStart">Accendi la camera</button>
+      <button class="btn" id="camStop" hidden>Spegni la camera</button>
+      <button class="btn" id="camShot" disabled>Salva foto</button>
+      <span class="hint" id="camStream" style="margin:0"></span>
+    </div>
+    <p class="hint" id="camMsg"></p>
+    <div id="camStage" hidden>
+      <canvas id="camCv" width="16" height="9"></canvas>
+      <video id="camVid" muted playsinline style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none"></video>
+      <p class="hint" id="camStep"></p>
+      <ol class="steps hint">
+        <li>Metti sul piano un pezzo rettangolare di cui conosci le misure (il foglio di legno, un cartone, un foglio A4). L'angolo "in basso a sinistra" è quello vicino a te, a sinistra, guardando la macchina dal tuo lato.</li>
+        <li>Clicca sul video i suoi 4 angoli, in ordine: basso-sinistra, basso-destra, alto-destra, alto-sinistra.</li>
+        <li>Scrivi qui sotto le sue misure vere.</li>
+      </ol>
+      <div class="grid2">
+        <div><label for="camRw">Larghezza del riferimento (mm)</label><input type="number" id="camRw" value="400" min="10"></div>
+        <div><label for="camRh">Altezza del riferimento (mm)</label><input type="number" id="camRh" value="400" min="10"></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="camBtnArea">Misure dell'area di lavoro</button>
+        <button class="btn" id="camBtnJob">Misure del lavoro</button>
+        <button class="btn" id="camUndo">Annulla ultimo punto</button>
+        <button class="btn" id="camReset">Ricomincia</button>
+      </div>
+      <label for="camK" style="margin-top:12px">Correzione dell'obiettivo <span id="camKv"></span></label>
+      <input type="range" id="camK" min="-60" max="60" value="0">
+      <p class="hint">L'obiettivo a 120° curva i bordi. Se a metà di un lato la linea gialla non segue il bordo vero del pezzo, muovi il cursore finché coincide.</p>
+      <div class="row" style="margin-top:10px">
+        <button class="btn on" id="camModeAdj">Sposta gli angoli</button>
+        <button class="btn" id="camModeMove" disabled>Sposta il disegno</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label class="chk"><input type="checkbox" id="camShow" checked> Mostra il lavoro</label>
+        <label class="chk"><input type="checkbox" id="camGrid" checked> Mostra la griglia</label>
+      </div>
+      <div class="grid3" style="margin-top:8px">
+        <div><label for="camOx">Disegno: X (mm)</label><input type="number" id="camOx" value="0"></div>
+        <div><label for="camOy">Disegno: Y (mm)</label><input type="number" id="camOy" value="0"></div>
+        <div><label for="camOp">Trasparenza</label><input type="range" id="camOp" min="10" max="100" value="60"></div>
+      </div>
+    </div>
+  </details>
 </section>
 
 <section class="card" id="s5">
@@ -250,7 +304,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer>CxAdGeM_Fp · Mk 5</footer>
+<footer>CxAdGeM_Fp · Mk 6</footer>
 </main>
 
 <script>
@@ -756,6 +810,7 @@ function doPreview(){
   if(!areaOK(w,h))txt+=' · ATTENZIONE: più grande dell\'area di lavoro!';
   $('info').textContent=txt;
   $('info').style.color=areaOK(w,h)?'var(--mute)':'var(--bad)';
+  if(window.Cam)Cam.dirty();
 }
 
 /* ---------- progetto da tagliare ---------- */
@@ -791,8 +846,27 @@ function doRenderSheets(){
   const st=$('stepList');st.innerHTML='';
   for(const t of plan.steps){const li=document.createElement('li');li.textContent=t;st.appendChild(li);}
   update3D(false);
+  if(window.Cam)Cam.dirty();
   refreshUI();
 }
+/* ---------- camera (si carica solo quando apri il riquadro) ---------- */
+window.__camApi={
+  area:()=>({w:Number($('areaX').value)||400,h:Number($('areaY').value)||400}),
+  job:()=>{
+    if(mode()==='taglia'){const sh=S.plan&&S.plan.sheets&&S.plan.sheets[S.sheetSel];return sh?{kind:'cut',w:sh.w,h:sh.h,items:sh.items}:null;}
+    if(!S.img)return null;const d=dims();return d.w>0&&d.h>0?{kind:'img',w:d.w,h:d.h,canvas:$('preview')}:null;
+  }
+};
+let camLoading=false;
+$('camBox').addEventListener('toggle',()=>{
+  const box=$('camBox');if(!box.open||window.Cam||camLoading)return;
+  camLoading=true;
+  const sc=document.createElement('script');sc.src='camera.js';
+  sc.onload=()=>{camLoading=false;};
+  sc.onerror=()=>{camLoading=false;$('camMsg').textContent='La camera funziona quando apri l\'app dal suo indirizzo internet (non dal file scaricato).';};
+  document.head.appendChild(sc);
+});
+
 /* ---------- vista 3D (si carica solo quando serve) ---------- */
 let v3Loading=false,v3Key='';
 function update3D(force){
@@ -873,6 +947,7 @@ function setMode(m){
   $('modeI').classList.toggle('on',m==='incidi');$('modeT').classList.toggle('on',m==='taglia');
   try{localStorage.setItem('ls_mode',m);}catch(e){}
   if(m==='taglia')doRenderSheets();
+  if(window.Cam)Cam.dirty();
   refreshUI();
 }
 

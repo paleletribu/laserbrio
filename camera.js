@@ -5,7 +5,7 @@ const $=id=>document.getElementById(id);
 const A=window.__camApi||{job:()=>null,area:()=>({w:400,h:400})};
 const K='ls_cam';
 const st={stream:null,pts:[],k1:0,rw:400,rh:400,ox:0,oy:0,op:0.6,mode:'adjust',show:true,grid:true,
-  Hb2i:null,Hi2b:null,raf:0,ov:null,ovDirty:true,ovHas:false,drag:null,W:0,H:0};
+  Hb2i:null,Hi2b:null,raf:0,ov:null,ovDirty:true,ovHas:false,drag:null,W:0,H:0,src:'usb',peerH:null,label:''};
 
 /* ---------- matematica ---------- */
 function solveH(src,dst){
@@ -139,7 +139,7 @@ function frame(){
 const NAMES=['basso a sinistra (vicino a te, a sinistra)','basso a destra','alto a destra','alto a sinistra'];
 function msg(t,bad){const m=$('camMsg');m.textContent=t||'';m.style.color=bad?'var(--bad)':'var(--mute)';}
 function save(){
-  try{localStorage.setItem(K,JSON.stringify({dev:$('camDev').value,res:$('camRes').value,pts:st.pts,k1:st.k1,rw:st.rw,rh:st.rh,ox:st.ox,oy:st.oy,op:st.op,show:st.show,grid:st.grid}));}catch(e){}
+  try{localStorage.setItem(K,JSON.stringify({dev:$('camDev').value,res:$('camRes').value,src:st.src,pts:st.pts,k1:st.k1,rw:st.rw,rh:st.rh,ox:st.ox,oy:st.oy,op:st.op,show:st.show,grid:st.grid}));}catch(e){}
 }
 function ui(){
   const on=!!st.stream,n=st.pts.length;
@@ -164,6 +164,46 @@ async function listDevices(){
     if([...sel.options].some(o=>o.value===cur))sel.value=cur;
   }catch(e){}
 }
+function useSrc(k){
+  if(st.src!==k&&st.pts.length){st.pts=[];calib();st.mode='adjust';msg('Hai cambiato camera: rifai i 4 angoli sul nuovo video.');}
+  st.src=k;
+}
+function loadJs(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
+function adopt(s){
+  if(st.stream&&st.stream!==s)st.stream.getTracks().forEach(t=>t.stop());
+  st.stream=s;useSrc('phone');st.label='Telefono';
+  const v=$('camVid');v.srcObject=s;v.play().catch(()=>{});
+  $('telBox').hidden=true;msg('');
+  cancelAnimationFrame(st.raf);st.raf=requestAnimationFrame(frame);
+  save();ui();
+}
+async function phone(){
+  stop(true);msg('');
+  if(!/^https?:$/.test(location.protocol)){msg('Il collegamento col telefono funziona solo aprendo l\'app dal suo indirizzo internet.',true);return;}
+  $('telBox').hidden=false;$('telQr').innerHTML='';$('telLink').textContent='';
+  $('telStep').textContent='Preparo il collegamento…';
+  try{
+    if(!window.Tel)await loadJs('telefono.js');
+    st.peerH=await Tel.receive({
+      onStream:adopt,
+      onState:(s,x)=>{
+        if(s==='open'){
+          const link=location.origin+location.pathname+'?tel='+x;
+          $('telStep').textContent='Sul telefono: inquadra il codice con la fotocamera e apri il link, poi premi "Invia il video al PC".';
+          $('telLink').textContent=link;
+          Tel.qr($('telQr'),link).catch(()=>{});
+        }else if(s==='closed'){
+          if(st.src==='phone'&&st.stream){st.stream=null;cancelAnimationFrame(st.raf);ui();}
+          $('telBox').hidden=false;
+          $('telStep').textContent='Il telefono si è scollegato. Puoi riprovare con lo stesso codice.';
+        }else if(s==='error'){
+          $('telStep').textContent=(x==='network'||x==='server-error'||x==='socket-error'||x==='socket-closed'||x==='browser-incompatible')
+            ?'Non riesco a usare il servizio di collegamento: serve internet su PC e telefono.':'Errore nel collegamento ('+x+'). Premi "Annulla" e riprova.';
+        }
+      }
+    });
+  }catch(e){$('telStep').textContent='Non riesco a caricare il collegamento: serve internet.';}
+}
 async function start(){
   stop(true);msg('');
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg('Questo browser non può usare la camera. Apri l\'app dal suo indirizzo internet con Chrome o Edge.',true);return;}
@@ -182,6 +222,7 @@ async function start(){
       :'Non riesco ad accendere la camera ('+(n||'errore')+').',true);
     return;
   }
+  useSrc('usb');$('telBox').hidden=true;
   const v=$('camVid');v.srcObject=st.stream;
   try{await v.play();}catch(e){}
   await listDevices();
@@ -196,6 +237,7 @@ async function start(){
 }
 function stop(quiet){
   cancelAnimationFrame(st.raf);
+  if(st.peerH){st.peerH.stop();st.peerH=null;}
   if(st.stream){st.stream.getTracks().forEach(t=>t.stop());st.stream=null;}
   const v=$('camVid');if(v)v.srcObject=null;
   if(!quiet)ui();
@@ -229,6 +271,8 @@ function bind(){
   const up=()=>{if(st.drag){st.drag=null;save();}};
   cv.onpointerup=up;cv.onpointercancel=up;
   $('camStart').onclick=start;
+  $('telStart').onclick=phone;
+  $('telCancel').onclick=()=>{if(st.peerH){st.peerH.stop();st.peerH=null;}$('telBox').hidden=true;};
   $('camStop').onclick=()=>stop();
   $('camDev').onchange=()=>{save();if(st.stream)start();};
   $('camRes').onchange=()=>{save();if(st.stream)start();};
@@ -255,6 +299,7 @@ function bind(){
 function restore(){
   let o=null;try{o=JSON.parse(localStorage.getItem(K)||'null');}catch(e){}
   if(o){
+    if(o.src==='phone'||o.src==='usb')st.src=o.src;
     if(Array.isArray(o.pts)&&o.pts.length<=4&&o.pts.every(p=>Array.isArray(p)&&p.length===2&&isFinite(p[0])&&isFinite(p[1])))st.pts=o.pts;
     if(isFinite(o.k1))st.k1=Math.max(-.6,Math.min(.6,o.k1));
     if(o.rw>0)st.rw=o.rw;if(o.rh>0)st.rh=o.rh;
@@ -269,6 +314,6 @@ function restore(){
   $('camShow').checked=st.show;$('camGrid').checked=st.grid;
   if(window.__camDevWanted){const s=$('camDev');const o2=document.createElement('option');o2.value=window.__camDevWanted;o2.textContent='La camera usata l\'ultima volta';s.appendChild(o2);s.value=window.__camDevWanted;}
 }
-window.Cam={dirty(){st.ovDirty=true;},_t:{st,b2c,c2b,solveH,ap,calib},start,stop};
+window.Cam={dirty(){st.ovDirty=true;},_t:{st,b2c,c2b,solveH,ap,calib},start,stop,phone};
 restore();bind();ui();
 })();

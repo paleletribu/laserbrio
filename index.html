@@ -273,10 +273,22 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
       <label for="camK" style="margin-top:12px">Correzione dell'obiettivo <span id="camKv"></span></label>
       <input type="range" id="camK" min="-60" max="60" value="0">
       <p class="hint">L'obiettivo a 120° curva i bordi. Se a metà di un lato la linea gialla non segue il bordo vero del pezzo, muovi il cursore finché coincide.</p>
-      <div class="row" style="margin-top:10px">
+      <div class="row" style="margin-top:10px" hidden>
         <button class="btn on" id="camModeAdj">Sposta gli angoli</button>
         <button class="btn" id="camModeMove" disabled>Sposta il disegno</button>
       </div>
+      <div class="row" style="margin-top:12px;align-items:center">
+        <button class="btn" id="camNL" aria-label="Sposta a sinistra">◀</button>
+        <button class="btn" id="camNU" aria-label="Sposta in alto">▲</button>
+        <button class="btn" id="camND" aria-label="Sposta in basso">▼</button>
+        <button class="btn" id="camNR" aria-label="Sposta a destra">▶</button>
+        <select id="camNudge" aria-label="Passo"><option value="0.5">0,5 mm</option><option value="1" selected>1 mm</option><option value="5">5 mm</option><option value="10">10 mm</option></select>
+        <button class="btn" id="camCenter">Centra nel riferimento</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label class="chk"><input type="checkbox" id="camApply" checked> Lavora dove sta il disegno sul video</label>
+      </div>
+      <p class="hint" id="camApplyHint">Con questa casella accesa, il laser incide o taglia esattamente dove vedi il disegno. Prima di premere "Imposta qui l'origine" porta il laser sull'angolo in basso a sinistra del riferimento, cioè il punto 1 che hai cliccato. Spenta, l'origine è l'angolo del disegno, come prima.</p>
       <div class="row" style="margin-top:10px">
         <label class="chk"><input type="checkbox" id="camShow" checked> Mostra il lavoro</label>
         <label class="chk"><input type="checkbox" id="camGrid" checked> Mostra la griglia</label>
@@ -333,7 +345,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer>CxAdGeM_Fp · Mk 10</footer>
+<footer>CxAdGeM_Fp · Mk 11</footer>
 </main>
 
 <script>
@@ -797,7 +809,22 @@ function startJob(res,label){
   if(G.job)return;
   if(G.state!=='Idle'){say('Il laser non è pronto (stato: '+stateIt(G.state)+').','bad');return;}
   if(S.laserMode===false){say('Prima attiva la "modalità laser" (avviso in alto).','bad');return;}
-  G.job={lines:res.lines,label:label,i:0,acked:0,t0:Date.now(),timeSec:res.timeSec};
+  let lines=res.lines,moved='';
+  const off=(window.Cam&&Cam.off)?Cam.off():null,ap=$('camApply');
+  if(off&&off.cal&&ap&&ap.checked&&(off.x||off.y)){
+    const dx=off.x,dy=off.y,A=areaMax();let bad=false;
+    lines=lines.map(t=>{
+      if(t.charAt(0)==='$')return t;
+      return t.replace(/([XY])(-?\d+(?:\.\d+)?)/g,(m,a,v)=>{
+        const n=Number(v)+(a==='X'?dx:dy);
+        if(n<-0.01||n>(a==='X'?A.w:A.h)+0.01)bad=true;
+        return a+fmt(n);
+      });
+    });
+    if(bad){say('Il disegno, spostato dove l\'hai messo sul video, esce dall\'area di lavoro. Riportalo dentro il riferimento.','bad');return;}
+    moved=' (spostato di X '+fmt(dx)+' · Y '+fmt(dy)+' mm come sul video)';
+  }
+  G.job={lines:lines,label:label+moved,i:0,acked:0,t0:Date.now(),timeSec:res.timeSec};
   G.paused=false;
   say('');updateProgress();refreshUI();pump();
 }
@@ -826,6 +853,7 @@ function params(){
           smax:S.smax,bidir:$('dirSel').value==='bi',revOffset:Number($('revOff').value)||0,overscan:2};
 }
 function dims(){return {w:Number($('wMm').value)||0,h:Number($('hMm').value)||0};}
+function areaMax(){return {w:Number($('areaX').value)||400,h:Number($('areaY').value)||400};}
 function areaOK(w,h){return w<=Number($('areaX').value)&&h<=Number($('areaY').value);}
 function cutParams(){return {F:Number($('cutSpeed').value)||200,passes:Math.max(1,Math.round(Number($('cutPasses').value)||1)),pct:clamp(Number($('cutPower').value)||100,1,100)};}
 

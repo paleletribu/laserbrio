@@ -123,9 +123,9 @@ function frame(){
       if(ok(o)){c.beginPath();c.arc(o[0],o[1],r*0.7,0,7);c.fillStyle='#ff3b30';c.fill();c.lineWidth=lw;c.strokeStyle='#fff';c.stroke();
         c.font=Math.round(r*1.5)+'px system-ui,sans-serif';c.fillStyle='#fff';c.strokeStyle='#000';c.lineWidth=3;c.strokeText('0,0',o[0]+r,o[1]-r*0.5);c.fillText('0,0',o[0]+r,o[1]-r*0.5);}
     }
-    if(!st.Hb2i||st.mode==='adjust'){
+    {
       st.pts.forEach((p,i)=>{
-        const x=p[0]*W,y=p[1]*st.H;
+        const x=p[0]*W,y=p[1]*st.H,r=st.Hb2i?Math.max(6,W/190):Math.max(9,W/110);
         c.beginPath();c.arc(x,y,r,0,7);c.fillStyle='rgba(255,212,0,.35)';c.fill();c.lineWidth=lw;c.strokeStyle='#ffd400';c.stroke();
         c.font='bold '+Math.round(r*1.3)+'px system-ui,sans-serif';c.fillStyle='#fff';c.strokeStyle='#000';c.lineWidth=3;
         c.strokeText(String(i+1),x+r*1.1,y-r*1.1);c.fillText(String(i+1),x+r*1.1,y-r*1.1);
@@ -150,8 +150,7 @@ function ui(){
   $('camKv').textContent='('+st.k1.toFixed(2)+')';
   let t;
   if(n<4)t='Clicca sul video l\'angolo '+(n+1)+' di 4: '+NAMES[n]+'.';
-  else if(st.mode==='move')t='Trascina sul video per spostare il disegno. I numeri qui sotto dicono di quanti mm (X, Y) parte dall\'angolo in basso a sinistra del riferimento. Il pallino rosso 0,0 è dove deve stare il laser per iniziare.';
-  else t='Puoi trascinare gli angoli gialli per sistemarli. Se a metà lato la linea gialla non segue il bordo vero, muovi "Correzione dell\'obiettivo".';
+  else t=A.job()?'Trascina il disegno sul video (col dito o col mouse) dove vuoi lavorare: il pallino rosso 0,0 è il suo angolo in basso a sinistra. Per sistemare la calibrazione trascina i pallini gialli piccoli negli angoli. Con le frecce qui sotto lo muovi di precisione.':'Scegli prima un\'immagine o un progetto, poi potrai trascinarlo sul video. Gli angoli gialli si possono trascinare per sistemare la calibrazione.';
   $('camStep').textContent=on?t:'';
   if(on){const s=$('camStream');if(s)s.textContent=(st.label?st.label+' · ':'')+(st.W?st.W+' × '+st.H:'in attesa dell\'immagine…');}
 }
@@ -274,16 +273,16 @@ function bind(){
     try{cv.setPointerCapture(e.pointerId);}catch(_){}
     if(st.pts.length<4){
       st.pts.push([p[0]/st.W,p[1]/st.H]);
-      if(st.pts.length===4){calib();st.mode='adjust';}
+      if(st.pts.length===4){calib();}
       save();ui();return;
     }
-    if(st.mode==='adjust'){
-      let bi=-1,bd=Infinity;
-      st.pts.forEach((q,i)=>{const d=Math.hypot(q[0]*st.W-p[0],q[1]*st.H-p[1]);if(d<bd){bd=d;bi=i;}});
-      if(bd<st.W/12)st.drag={i:bi};
-    }else if(st.Hi2b){
-      const b=c2b(p[0],p[1]);st.drag={bx:b[0],by:b[1],ox:st.ox,oy:st.oy};
+    let bi=-1,bd=Infinity;
+    st.pts.forEach((q,i)=>{const d=Math.hypot(q[0]*st.W-p[0],q[1]*st.H-p[1]);if(d<bd){bd=d;bi=i;}});
+    if(bd<st.W/40)st.drag={i:bi};
+    else if(st.Hi2b&&A.job()){
+      const b=c2b(p[0],p[1]);if(ok(b))st.drag={bx:b[0],by:b[1],ox:st.ox,oy:st.oy};
     }
+    if(st.drag)e.preventDefault();
   };
   cv.onpointermove=e=>{
     if(!st.drag)return;const p=pos(e);
@@ -316,6 +315,10 @@ function bind(){
   $('camModeMove').onclick=()=>{st.mode='move';ui();};
   $('camShow').onchange=()=>{st.show=$('camShow').checked;save();};
   $('camGrid').onchange=()=>{st.grid=$('camGrid').checked;save();};
+  const nudge=(dx,dy)=>{if(!st.Hb2i)return;st.ox=Math.round((st.ox+dx)*10)/10;st.oy=Math.round((st.oy+dy)*10)/10;setNum('camOx',st.ox);setNum('camOy',st.oy);st.ovDirty=true;save();};
+  const ns=()=>Number($('camNudge').value)||1;
+  $('camNL').onclick=()=>nudge(-ns(),0);$('camNR').onclick=()=>nudge(ns(),0);$('camNU').onclick=()=>nudge(0,ns());$('camND').onclick=()=>nudge(0,-ns());
+  $('camCenter').onclick=()=>{const j=A.job();if(!j||!st.Hb2i)return;st.ox=Math.round((st.rw-j.w)/2*10)/10;st.oy=Math.round((st.rh-j.h)/2*10)/10;setNum('camOx',st.ox);setNum('camOy',st.oy);st.ovDirty=true;save();};
   $('camOx').oninput=()=>{st.ox=Number($('camOx').value)||0;st.ovDirty=true;save();};
   $('camOy').oninput=()=>{st.oy=Number($('camOy').value)||0;st.ovDirty=true;save();};
   $('camOp').oninput=()=>{st.op=Number($('camOp').value)/100;save();};
@@ -338,6 +341,6 @@ function restore(){
   $('camShow').checked=st.show;$('camGrid').checked=st.grid;
   if(window.__camDevWanted){const s=$('camDev');const o2=document.createElement('option');o2.value=window.__camDevWanted;o2.textContent='La camera usata l\'ultima volta';s.appendChild(o2);s.value=window.__camDevWanted;}
 }
-window.Cam={dirty(){st.ovDirty=true;},_t:{st,b2c,c2b,solveH,ap,calib},start,stop,phone};
+window.Cam={off:()=>({x:st.ox,y:st.oy,cal:!!st.Hb2i}),dirty(){st.ovDirty=true;},_t:{st,b2c,c2b,solveH,ap,calib},start,stop,phone};
 restore();bind();ui();
 })();

@@ -106,6 +106,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   <h2><span class="n">1</span> Collega il laser</h2>
   <div class="row">
     <button class="btn primary" id="btnConnect">Collega il laser (cavo USB)</button>
+    <button class="btn" id="btnSim">Prova senza laser</button>
     <button class="btn" id="btnDisconnect" hidden>Scollega</button>
     <span class="pill" id="connState">Non collegato</span>
     <button class="btn" id="btnUnlock" hidden>Sblocca</button>
@@ -332,7 +333,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer>CxAdGeM_Fp · Mk 9</footer>
+<footer>CxAdGeM_Fp · Mk 10</footer>
 </main>
 
 <script>
@@ -647,8 +648,51 @@ const mode=()=>document.body.dataset.mode;
 function say(t,cls){const m=$('msg');m.textContent=t||'';m.style.color=cls==='bad'?'var(--bad)':cls==='ok'?'var(--ok)':'var(--mute)';}
 
 /* ---------- seriale ---------- */
+/* ---------- laser virtuale (prova senza S9) ---------- */
+function simStart(){
+  const sm={x:0,y:0,pend:[],hold:false,acc:0,timer:0};
+  const num=(t,a)=>{const m=t.match(new RegExp(a+'(-?[\\d.]+)'));return m?Number(m[1]):null;};
+  const reply=t=>setTimeout(()=>onLine(t),0);
+  function exec(t){
+    if(t.startsWith('$J=')){const dx=num(t,'X'),dy=num(t,'Y');if(dx!==null)sm.x+=dx;if(dy!==null)sm.y+=dy;}
+    else if(t.startsWith('G10 L20')){sm.x=0;sm.y=0;}
+    else if(t==='$$'){reply('$30=1000');reply('$32=1');}
+    else if(/^(G0|G1|X|Y)/.test(t)){const x=num(t,'X'),y=num(t,'Y');if(x!==null)sm.x=x;if(y!==null)sm.y=y;}
+  }
+  sm.timer=setInterval(()=>{
+    if(sm.hold||!sm.pend.length)return;
+    const j=G.job,dur=j?Math.min(30,Math.max(3,j.timeSec/8)):1;
+    sm.acc+=j?Math.max(1,j.lines.length/(dur*25)):1;
+    while(sm.acc>=1&&sm.pend.length){sm.acc-=1;exec(sm.pend.shift());onLine('ok');}
+    if(!sm.pend.length)sm.acc=0;
+  },40);
+  G.writer={
+    write(d){
+      if(d.length===1){
+        const b=d[0];
+        if(b===0x3f)reply('<'+(sm.hold?'Hold:0':sm.pend.length?'Run':'Idle')+'|WPos:'+sm.x.toFixed(3)+','+sm.y.toFixed(3)+',0.000|FS:0,0>');
+        else if(b===0x21)sm.hold=true;
+        else if(b===0x7e)sm.hold=false;
+        else if(b===0x18){sm.pend=[];sm.hold=false;reply('Grbl 1.1h [prova]');}
+      }else{
+        G.dec.decode(d).split('\n').forEach(t=>{t=t.trim();if(t)sm.pend.push(t);});
+      }
+      return Promise.resolve();
+    },
+    releaseLock(){clearInterval(sm.timer);}
+  };
+  G.sim=true;
+}
+$('btnSim').onclick=async()=>{
+  simStart();G.port=null;G.connected=true;
+  G.queue=[];G.inflight=[];G.inflightBytes=0;G.job=null;G.buf='';
+  G.poll=setInterval(()=>{if(G.connected)rt(0x3f);},300);
+  refreshUI();cmd('$$');
+  say('Prova senza laser: tutto è simulato, nessun laser si accende. Imposta un\'origine e prova i passi come se fosse collegato.','ok');
+};
 const hasSerial=('serial' in navigator);
 if(!hasSerial){$('noSerial').hidden=false;$('btnConnect').disabled=true;}
+window.addEventListener('beforeunload',()=>{});
 
 async function connect(){
   try{
@@ -673,7 +717,7 @@ async function disconnect(){
   try{await G.reader.cancel();}catch(e){}
   try{G.writer.releaseLock();}catch(e){}
   try{await G.port.close();}catch(e){}
-  G.port=null;G.state='—';G.job=null;refreshUI();
+  G.port=null;G.sim=false;G.state='—';G.job=null;refreshUI();
 }
 function onDisconnected(){
   if(!G.connected)return;
@@ -703,7 +747,7 @@ function pump(){
     else if(G.job&&G.job.i<G.job.lines.length){text=G.job.lines[G.job.i];fromJob=true;}
     else break;
     const len=text.length+1;
-    if(G.inflight.length&&G.inflightBytes+len>RX)break;
+    if(G.inflight.length&&G.inflightBytes+len>(G.sim?1e9:RX))break;
     if(fromJob)G.job.i++;else G.queue.shift();
     G.inflight.push({len:len,cb:cb,job:fromJob});G.inflightBytes+=len;
     G.writer.write(G.enc.encode(text+'\n')).catch(()=>{});
@@ -763,7 +807,7 @@ function failJob(err){
 }
 function finishJob(){
   const label=G.job.label;G.job=null;
-  say(label+': finito!','ok');refreshUI();updateProgress();
+  say(label+': finito!'+(G.sim?' (simulazione: nessun laser acceso)':''),'ok');refreshUI();updateProgress();
 }
 async function stopNow(){
   if(!G.connected)return;
@@ -962,10 +1006,10 @@ function sheetBox(){
 }
 function refreshUI(){
   const c=G.connected,idle=c&&G.state==='Idle'&&!G.job,run=!!G.job,cutMode=mode()==='taglia';
-  $('btnConnect').hidden=c;$('btnDisconnect').hidden=!c;
+  $('btnConnect').hidden=c;$('btnSim').hidden=c;$('btnDisconnect').hidden=!c;
   const pill=$('connState');
   if(!c){pill.textContent='Non collegato';pill.className='pill';}
-  else{pill.textContent='Collegato · '+stateIt(G.state);pill.className='pill '+(G.state==='Alarm'?'bad':(G.state==='Idle'?'ok':'warn'));}
+  else{pill.textContent=(G.sim?'Prova (nessun laser) · ':'Collegato · ')+stateIt(G.state);pill.className='pill '+(G.state==='Alarm'?'bad':(G.state==='Idle'?'ok':'warn'));}
   $('btnUnlock').hidden=!(c&&G.state==='Alarm');
   $('modeWarn').hidden=!(c&&S.laserMode===false);
   document.querySelectorAll('[data-j]').forEach(b=>b.disabled=!idle);

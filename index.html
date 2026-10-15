@@ -60,6 +60,10 @@ ol.steps{padding-left:22px;margin:8px 0}
 ol.steps li{margin:6px 0}
 ul.list{padding-left:22px;margin:8px 0}
 footer{margin-top:26px;text-align:center;color:var(--mute);font-size:13px;letter-spacing:.3px}
+#v3d{height:430px;border-radius:12px;overflow:hidden;background:#f3ebe0;border:1px solid var(--line);margin-top:8px}
+#v3d canvas{border:0;border-radius:0;max-width:none;background:transparent;touch-action:none}
+.chk{display:inline-flex;align-items:center;gap:6px;margin:0;font-size:15px;color:var(--ink)}
+.chk input{width:20px;height:20px}
 [hidden]{display:none!important}
 body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-only="taglia"]{display:none!important}
 @media(max-width:520px){.grid2{grid-template-columns:1fr}}
@@ -127,6 +131,17 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   <p class="hint">Se non hai le misure, vanno bene i valori già scritti: sono quelli di un profilo 20 × 20 mm e di legno da 3 mm. Misura il profilo con un calibro.</p>
   <p class="hint" id="planMsg" style="color:var(--bad)"></p>
   <div id="planBody" hidden>
+    <details id="v3dBox" open>
+      <summary>Anteprima 3D del supporto montato</summary>
+      <div id="v3d"><p class="hint" style="padding:14px" id="v3dMsg">Sto caricando la vista 3D…</p></div>
+      <div class="row" style="margin-top:10px">
+        <label class="chk"><input type="checkbox" id="v3Phone" checked> Telefono</label>
+        <label class="chk"><input type="checkbox" id="v3Rail" checked> Profilo del telaio</label>
+        <label class="chk" style="flex:1;min-width:180px">Vista esplosa <input type="range" id="v3Exp" min="0" max="100" value="0"></label>
+        <button class="btn" id="v3Reset">Rimetti la vista</button>
+      </div>
+      <p class="hint">Trascina per ruotare, rotellina o due dita per ingrandire. Con "Vista esplosa" i pezzi si staccano per far vedere come entrano uno nell'altro. Il telefono è in blu trasparente, il profilo del telaio in grigio.</p>
+    </details>
     <div class="sheetbtns" id="sheetBtns"></div>
     <canvas id="sheetCanvas" width="600" height="600"></canvas>
     <p class="hint" id="sheetInfo"></p>
@@ -235,7 +250,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer>CxAdGeM_Fp · Mk 4</footer>
+<footer>CxAdGeM_Fp · Mk 5</footer>
 </main>
 
 <script>
@@ -436,7 +451,8 @@ function phoneStandPlan(P,area){
     'Prima di accendere: con il laser spento sposta a mano testina e carrello in tutta la corsa, per essere sicuro che non tocchino il supporto.'
   ];
   return {parts:parts,sheets:sheets.sheets,hardware:hardware,steps:steps,
-          info:{k:k,Hp:Hp,zin:zin,zout:zout,Lf:Lf,Lclamp:Lclamp,Ljaw:Ljaw}};
+          info:{k:k,Hp:Hp,zin:zin,zout:zout,Lf:Lf,Lclamp:Lclamp,Ljaw:Ljaw,
+          ys:ys,ytop:ytop,boltY:boltY,pw:pw,tw:tw,aw:aw,cb:cb,Lj:Lj,lipW:lipW,wallT:wallT,footOff:footOff,jawEdge:jawEdge,nIn:nIn,tabL:tabL,holeR:holeR}};
 }
 
 // impaginazione a scaffali sui fogli di legno (origine in basso a sinistra, margine 5 mm)
@@ -774,8 +790,30 @@ function doRenderSheets(){
   for(const t of plan.hardware){const li=document.createElement('li');li.textContent=t;hw.appendChild(li);}
   const st=$('stepList');st.innerHTML='';
   for(const t of plan.steps){const li=document.createElement('li');li.textContent=t;st.appendChild(li);}
+  update3D(false);
   refreshUI();
 }
+/* ---------- vista 3D (si carica solo quando serve) ---------- */
+let v3Loading=false,v3Key='';
+function update3D(force){
+  const box=$('v3dBox');if(!box||!box.open||!S.plan||S.plan.error)return;
+  const key=JSON.stringify(projParams());
+  if(!force&&key===v3Key&&window.Vista3D&&window.Vista3D._state())return;
+  const msg=$('v3dMsg');
+  const run=()=>{v3Key=key;window.Vista3D.update($('v3d'),S.plan,projParams()).catch(()=>{$('v3d').innerHTML='<p class="hint" style="padding:14px">Non riesco a caricare la vista 3D: serve internet la prima volta.</p>';v3Key='';});};
+  if(window.Vista3D){run();return;}
+  if(v3Loading)return;v3Loading=true;
+  const sc=document.createElement('script');sc.src='vista3d.js';
+  sc.onload=()=>{v3Loading=false;run();};
+  sc.onerror=()=>{v3Loading=false;if(msg)msg.textContent='La vista 3D funziona quando apri l\'app dal suo indirizzo internet (non dal file scaricato).';};
+  document.head.appendChild(sc);
+}
+$('v3dBox').addEventListener('toggle',()=>update3D(false));
+$('v3Phone').onchange=()=>window.Vista3D&&Vista3D.set({phone:$('v3Phone').checked});
+$('v3Rail').onchange=()=>window.Vista3D&&Vista3D.set({rail:$('v3Rail').checked});
+$('v3Exp').oninput=()=>window.Vista3D&&Vista3D.set({explode:Number($('v3Exp').value)/100});
+$('v3Reset').onclick=()=>window.Vista3D&&Vista3D.resetView();
+
 function drawSheet(sh){
   const aw=Number($('areaX').value)||400,ah=Number($('areaY').value)||400;
   const cv=$('sheetCanvas'),sc=600/aw;

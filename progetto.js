@@ -402,36 +402,74 @@ function build(area){
   }
   if(!list.length)return {error:'Nessun tratto selezionato: accendi almeno un colore nell\'elenco qui sopra.'};
   let all=[];for(const s of list)for(const p of s.pts)all.push(p);
-  const bb=bboxOf(all),w=(bb.maxx-bb.minx)*sc,h=(bb.maxy-bb.miny)*sc,m=3;
-  if(!(w>0&&h>0))return {error:'Il disegno non ha dimensioni.'};
-  if(w+2*m>area.w||h+2*m>area.h)return {error:'Il progetto misura '+Math.round(w)+' × '+Math.round(h)+' mm e non sta nell\'area di lavoro ('+Math.round(area.w)+' × '+Math.round(area.h)+' mm). Riduci la scala, oppure spegni i colori che sono cornici o fogli.'};
-  const paths=list.map(s=>{
-    const pts=s.pts.map(q=>[(q[0]-bb.minx)*sc+m,(bb.maxy-q[1])*sc+m]);   // SVG ha la Y verso il basso: la giro
-    return {pts,closed:s.closed};
-  });
-  // fori = tratti chiusi dentro un altro tratto chiuso (profondità dispari)
-  const closed=paths.filter(p=>p.closed);
-  if(closed.length<=2500){
-    for(const p of closed){p.a=Math.abs(area2(p.pts));p.b=bboxOf(p.pts);}
-    for(const p of closed){
-      let depth=0;const t=p.pts[0];
-      for(const q of closed){
-        if(q===p||q.a<=p.a)continue;
+  const bb=bboxOf(all),m=3,gap=4;
+  if(!((bb.maxx-bb.minx)>0&&(bb.maxy-bb.miny)>0))return {error:'Il disegno non ha dimensioni.'};
+  // tutti i tratti, con Y girata (nel file la Y va verso il basso) e scala applicata
+  const paths=list.map(s=>({pts:s.pts.map(q=>[(q[0]-bb.minx)*sc,(bb.maxy-q[1])*sc]),closed:s.closed}));
+  for(const p of paths){p.b=bboxOf(p.pts);p.a=p.closed?Math.abs(area2(p.pts)):0;}
+  const closed=paths.filter(p=>p.closed).sort((x,y)=>y.a-x.a);
+  // fori = tratti chiusi dentro un altro tratto chiuso (profondità dispari); owner = il contorno più piccolo che lo contiene
+  if(closed.length<=6000){
+    for(let i=0;i<closed.length;i++){
+      const p=closed[i],t=p.pts[0];let depth=0,owner=null;
+      for(let j=i-1;j>=0;j--){
+        const q=closed[j];
+        if(q.a<=p.a)continue;
         if(t[0]<q.b.minx||t[0]>q.b.maxx||t[1]<q.b.miny||t[1]>q.b.maxy)continue;
-        if(inside(t,q.pts))depth++;
+        if(inside(t,q.pts)){depth++;if(!owner)owner=q;}
       }
-      p.hole=depth%2===1;
+      p.hole=depth%2===1;p.owner=owner;
     }
   }
-  const holes=[],outers=[],item={name:P.name||'progetto',tag:'file',x:m,y:m,w:w,h:h,paths:[]};
-  for(const p of paths){
-    const pts=p.pts;if(!p.closed)pts.open=true;
-    item.paths.push({hole:!!p.hole,open:!p.closed,pts:pts});
-    (p.hole||!p.closed?holes:outers).push(pts);
+  const pieces=[];
+  for(const p of closed)if(!p.hole){p.kids=[];pieces.push(p);}
+  for(const p of closed)if(p.hole){let o=p.owner;while(o&&o.hole)o=o.owner;if(o&&o.kids)o.kids.push(p);else{p.kids=[];p.hole=false;pieces.push(p);}}
+  for(const p of paths)if(!p.closed){
+    const t=p.pts[0];let best=null;
+    for(const q of pieces){if(t[0]>=q.b.minx&&t[0]<=q.b.maxx&&t[1]>=q.b.miny&&t[1]<=q.b.maxy&&(!best||q.a<best.a))best=q;}
+    if(best)best.kids.push(p);else{p.kids=[];pieces.push(p);}
   }
-  item.paths.sort((a,b)=>(a.open?2:a.hole?1:0)-(b.open?2:b.hole?1:0));
-  const sheet={items:[item],cutPaths:holes.concat(outers),w:w+2*m,h:h+2*m};
-  return {sheets:[sheet],hardware:[],steps:[],imported:{n:paths.length,holes:holes.length,w:w,h:h}};
+  for(const q of pieces){
+    let b=q.b;for(const k of q.kids)b={minx:Math.min(b.minx,k.b.minx),miny:Math.min(b.miny,k.b.miny),maxx:Math.max(b.maxx,k.b.maxx),maxy:Math.max(b.maxy,k.b.maxy)};
+    q.box=b;q.pw=b.maxx-b.minx;q.ph=b.maxy-b.miny;
+  }
+  const W=area.w-2*m,H=area.h-2*m;
+  const wholeW=(bb.maxx-bb.minx)*sc,wholeH=(bb.maxy-bb.miny)*sc;
+  const sheets=[];
+  const mk=(its)=>{
+    const holes=[],outers=[];
+    for(const it of its)for(const p of it.paths){(p.hole||p.open?holes:outers).push(p.pts);}
+    let mw=0,mh=0;for(const it of its){mw=Math.max(mw,it.x+it.w);mh=Math.max(mh,it.y+it.h);}
+    return {items:its,cutPaths:holes.concat(outers),w:mw+m,h:mh+m};
+  };
+  const place=(q,ox,oy,name)=>{
+    const dx=ox-q.box.minx,dy=oy-q.box.miny;
+    const mv=p=>({hole:!!p.hole&&p.closed,open:!p.closed,pts:p.pts.map(c=>{const r=[c[0]+dx,c[1]+dy];if(!p.closed)r.open=true;return r;})});
+    const ps=[mv(q)].concat(q.kids.map(mv));
+    ps.forEach(p=>{if(p.open)p.pts.open=true;});
+    ps.sort((a,b)=>(a.open?2:a.hole?1:0)-(b.open?2:b.hole?1:0));
+    return {name,tag:'file',x:ox,y:oy,w:q.pw,h:q.ph,paths:ps};
+  };
+  if(wholeW<=W&&wholeH<=H){
+    // tutto sta in un foglio: lo lascio com'è nel file
+    const its=pieces.map((q,i)=>place(q,q.box.minx+m,q.box.miny+m,(P.name||'progetto')+(pieces.length>1?' · pezzo '+(i+1):'')));
+    sheets.push(mk(its));
+  }else{
+    // non sta: divido in pezzi e li dispongo su più fogli (file di legno) grandi come l'area di lavoro
+    const big=pieces.find(q=>q.pw>W||q.ph>H);
+    if(big)return {error:'Un pezzo del progetto misura '+Math.round(big.pw)+' × '+Math.round(big.ph)+' mm e non sta nell\'area di lavoro ('+Math.round(area.w)+' × '+Math.round(area.h)+' mm). Riduci la scala, oppure spegni i colori che sono cornici o fogli.'};
+    const ord=pieces.slice().sort((x,y)=>y.ph-x.ph||y.pw-x.pw);
+    let its=[],x=0,y=0,rowH=0,n=0;
+    for(const q of ord){
+      if(x>0&&x+q.pw>W){x=0;y+=rowH+gap;rowH=0;}
+      if(y+q.ph>H){sheets.push(mk(its));its=[];x=0;y=0;rowH=0;}
+      its.push(place(q,x+m,y+m,(P.name||'progetto')+' · pezzo '+(++n)));
+      x+=q.pw+gap;rowH=Math.max(rowH,q.ph);
+    }
+    if(its.length)sheets.push(mk(its));
+  }
+  const nh=paths.filter(p=>p.hole).length;
+  return {sheets,hardware:[],steps:[],imported:{n:paths.length,holes:nh,w:wholeW,h:wholeH,pieces:pieces.length}};
 }
 
 /* ---------- interfaccia ---------- */
@@ -482,7 +520,8 @@ async function loadPhoto(){
   const img=$('impPhoto');img.hidden=true;
   if(P.photo){URL.revokeObjectURL(P.photo);P.photo=null;}
   const cur=P.cur;if(!cur)return;
-  const e=cur.entries.find(x=>/\.(jpe?g|png)$/i.test(x.name)&&x.us<6e6);
+  const imgs=cur.entries.filter(x=>/\.(jpe?g|png)$/i.test(x.name)&&x.us<40e6);
+  const e=imgs.find(x=>/photo/i.test(x.name))||imgs[0];
   if(!e)return;
   try{const b=await unzipEntry(cur.blob,e);P.photo=URL.createObjectURL(new Blob([b],{type:/png$/i.test(e.name)?'image/png':'image/jpeg'}));img.src=P.photo;img.hidden=false;}catch(_){}
 }

@@ -175,7 +175,7 @@ function draw(append){
   }else if(st.view==='raw'){
     list=DB.raw.filter(r=>!st.q||(r[1]+' '+r[2]).toLowerCase().includes(st.q));
     const from=append?g.children.length:0;
-    list.slice(from,st.n).forEach(r=>card(g,'',r[1],r[3]+' file ('+Object.keys(r[4]).join(', ')+')',r[5],()=>detailRaw(r)));
+    list.slice(from,st.n).forEach(r=>card(g,'',r[1],r[4].categorie?r[3]+' categorie':r[3]+' file ('+Object.keys(r[4]).join(', ')+')',r[5],()=>detailRaw(r)));
   }else{
     list=DB.eng.filter(r=>!st.q||r[0].toLowerCase().includes(st.q));
     const from=append?g.children.length:0;
@@ -268,7 +268,7 @@ function detailRaw(r){
   line(b,'div',r[2]+' · cartella "'+r[0]+'"','hint');
   const p=line(b,'span',FE[r[5]]+' sull\'S9 (stima)','pill '+FC[r[5]]);p.style.margin='8px 0';
   line(b,'div',r[6],'hint');
-  line(b,'div',r[3]+' file, formati: '+Object.entries(r[4]).map(([k,v])=>k.toUpperCase()+' '+v).join(', ')+' (senza foto di anteprima)','hint');
+  if(r[4].categorie)line(b,'div',r[3]+' categorie: apri la cartella e scegli (formati EPS, AI, DXF).','hint');else line(b,'div',r[3]+' file, formati: '+Object.entries(r[4]).map(([k,v])=>k.toUpperCase()+' '+v).join(', ')+' (senza foto di anteprima)','hint');
   const go=document.createElement('button');go.className='btn primary big';go.style.marginTop='12px';go.style.marginRight='8px';go.textContent='Sfoglia la cartella';go.onclick=()=>browse(r[0],r[1]);b.appendChild(go);
   const x=document.createElement('button');x.className='btn';x.style.marginTop='12px';x.textContent='Chiudi';x.onclick=()=>$('catDet').remove();b.appendChild(x);
 }

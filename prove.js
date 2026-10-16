@@ -100,18 +100,19 @@ function textOps(str,x,y,hmm,pct,F,iv){   // scritta in corsivo/grassetto raster
 /* ---------- modelli ---------- */
 const GL={nome:'',sp:'3'},UPDS=[];
 const LAB=12;   // potenza delle scritte (incisione leggera)
+const parseG=str=>String(str||'').split('_').map(g=>nums(g.replace(/,/g,' ')));
 const T=[
- {id:'scheda',name:'Scheda materiale completa (con QR)',
-  desc:'La scheda da fare su ogni nuovo legno: scritta col nome e lo spessore, quadratini di taglio (potenza × velocità), quadrati di incisione, contorno tagliato e un QR inciso. Dopo la prova, scrivi qui sotto le impostazioni che hai scelto: il QR le contiene. Inquadrando il QR con lo smartphone si apre laserBrio con il materiale già pronto da salvare. Il nome e lo spessore si scrivono in alto.',
+ {id:'scheda',name:'Scheda di prova (un foglio solo)',
+  desc:'Un unico foglio da fare su ogni nuovo legno e da conservare. Sopra c\'è scritto il nome del materiale e lo spessore; poi i quadratini di taglio e di incisione (potenza × velocità), la scala di grigi, le linee per il fuoco, le fessure per gli incastri e un QR. Alla fine il foglio viene tagliato lungo il contorno. Per scegliere i valori giusti, fotografa il foglio col QR (o inquadralo con la camera) e tocca i quadratini migliori: laserBrio si ricorda potenza e velocità.',
   par:[['cs','Taglio: velocità (mm/min)','150,250,400'],['cp','Taglio: potenze (%)','70,85,100'],['es','Incisione: velocità (mm/min)','1500,2500,3500'],['ep','Incisione: potenze (%)','15,30,45'],
-       ['qtag','Taglio scelto: potenza, velocità, passate',E=>{const c=E.cut();return c.pct+','+c.F+','+c.passes;}],['qeng','Incisione scelta: min%, max%, velocità',E=>{const c=E.eng();return c.pmin+','+c.pmax+','+c.speed;}],
+       ['rmin','Scala di grigi: da (%)','5'],['rmax','Scala di grigi: a (%)','50'],['rs','Scala di grigi: velocità','2000'],['fp','Fuoco: potenza (%)','30'],['fs','Fuoco: velocità','1500'],['step','Incastro: passo delle fessure (mm)','0.1'],
        ['qp','Potenza di scritte e QR (%)','30'],['cont','Taglia il contorno (si/no)','si']],
   gen(p,E){
-    const cs=nums(p.cs).slice(0,6),cp=nums(p.cp).slice(0,6),es=nums(p.es).slice(0,6),ep=nums(p.ep).slice(0,6);
+    const cs=nums(p.cs).slice(0,5),cp=nums(p.cp).slice(0,5),es=nums(p.es).slice(0,5),ep=nums(p.ep).slice(0,5);
     if(!cs.length||!cp.length||!es.length||!ep.length)return [];
-    const nome=(GL.nome||'Materiale').trim(),sp=(GL.sp||'').trim(),qp=Math.min(100,+p.qp||30),F=2000,c=8,g=5,ops=[],cuts=[];
+    const nome=(GL.nome||'Materiale').trim(),sp=(GL.sp||'').trim(),t=+sp||3,qp=Math.min(100,+p.qp||30),F=2000,c=8,g=5,ops=[],cuts=[];
     const t1=textOps(nome.toUpperCase(),4,3,5,qp,F,0.15);ops.push(...t1.ops);
-    if(sp){const t2=textOps(sp+' mm',4,10.5,3.5,qp,F,0.15);ops.push(...t2.ops);}
+    if(sp)ops.push(...textOps(sp+' mm',4,10.5,3.5,qp,F,0.15).ops);
     const oy=26,hy=oy-6;
     const grid=(ox,S,P,eng)=>{
       S.forEach((v,i)=>ops.push(...text(v,ox+i*(c+g)+(c-String(v).length*3)/2+0.6,hy,LAB)));
@@ -124,78 +125,30 @@ const T=[
     };
     const ox1=16,ox2=ox1+cs.length*(c+g)+16;
     grid(ox1,cs,cp,false);grid(ox2,es,ep,true);
-    const xq=ox2+es.length*(c+g)+5;
-    const url='https://paleletribu.github.io/laserbrio/?m='+encodeURIComponent(nome)+(sp?'&s='+encodeURIComponent(sp):'')+'&c='+String(p.qtag).replace(/\s/g,'')+'&i='+String(p.qeng).replace(/\s/g,'');
+    const gb=oy+Math.max(cp.length,ep.length)*(c+g);
+    const xq=ox2+es.length*(c+g)+6;
+    const url='https://paleletribu.github.io/laserbrio/?m='+encodeURIComponent(nome)+(sp?'&s='+encodeURIComponent(sp):'')+'&g='+[cs,cp,es,ep].map(a=>a.join(',')).join('_');
     const q=qrOps(url,xq,4,0.8,qp,F);ops.push(...q.ops);
-    const W=Math.max(xq+q.size+4,t1.w+8),H=Math.max(oy+Math.max(cp.length,ep.length)*(c+g)+2,q.size+8);
-    const co=E.cut(),all=ops.concat(cuts);
-    cuts.forEach(o=>{o.pct=o.pct;});
+    // fuoco: 6 linee sotto il QR
+    const yf=4+q.size+6,fp=Math.min(100,+p.fp||30),fs=+p.fs||1500;
+    for(let i=0;i<6;i++){ops.push({k:'line',pts:[[xq+6,yf+i*4],[xq+q.size,yf+i*4]],pct:fp,F:fs});ops.push(...text(i+1,xq,yf+i*4-1.8,LAB));}
+    // riga 2: scala di grigi e fessure
+    const y2=gb+4,a0=Math.max(1,+p.rmin||5),a1=Math.min(100,+p.rmax||50);
+    for(let i=0;i<6;i++){
+      const pc=Math.round(a0+(a1-a0)*i/5),x=4+i*11;
+      ops.push({k:'fill',x,y:y2,w:8,h:14,pct:pc,F:+p.rs||2000,iv:0.1});
+      ops.push(...text(pc,x+(8-String(pc).length*3)/2+0.6,y2+16,LAB));
+    }
+    const co=E.cut(),sx=4+6*11+10,st=Math.max(0.02,+p.step||0.1);
+    for(let i=0;i<7;i++){
+      const w=t+(i-3)*st,x=sx+i*9+(9-w)/2,lab=String(Math.round(w*10));
+      ops.push(...text(lab,sx+i*9+(9-lab.length*3)/2+0.6,y2+16,LAB));
+      cuts.push({k:'cut',pts:rect(x,y2,w,12),closed:true,pct:co.pct,F:co.F,passes:co.passes});
+    }
+    const W=Math.max(xq+q.size+4,sx+63+4,t1.w+8),H=Math.max(y2+24,yf+24+2);
+    const all=ops.concat(cuts);
     if(!/^n/i.test(String(p.cont).trim()))all.push({k:'cut',pts:rect(0,0,W,H),closed:true,pct:co.pct,F:co.F,passes:co.passes});
-    return all;}},
- {id:'taglio',name:'Taglio: potenza × velocità',
-  desc:'Quadratini da tagliare con potenze (righe) e velocità (colonne) diverse. Il più veloce che stacca bene il quadratino è la tua impostazione di taglio. I numeri incisi accanto dicono quale è quale: a sinistra la potenza in %, in alto la velocità in mm/min.',
-  par:[['speeds','Velocità (mm/min)','100,150,200,300,400'],['powers','Potenze (%)','60,70,80,90,100'],['passes','Passate','1']],
-  gen(p,E){
-    const sp=nums(p.speeds).slice(0,8),pw=nums(p.powers).slice(0,8),ps=Math.max(1,Math.round(+p.passes||1)),c=10,g=6,ox=12,oy=8,ops=[];
-    sp.forEach((v,i)=>ops.push(...text(v,ox+i*(c+g)+(c-String(v).length*3)/2,2,LAB)));
-    pw.forEach((v,j)=>ops.push(...text(v,ox-3-String(v).length*3,oy+j*(c+g)+(c-3.6)/2,LAB)));
-    pw.forEach((pc,j)=>sp.forEach((v,i)=>ops.push({k:'cut',pts:rect(ox+i*(c+g),oy+j*(c+g),c,c),closed:true,pct:Math.min(100,pc),F:v,passes:ps})));
-    return ops;}},
- {id:'incisione',name:'Incisione: potenza × velocità',
-  desc:'Quadrati pieni incisi con potenze (righe) e velocità (colonne) diverse. Scegli quello con il tono che ti piace, senza bruciare troppo il legno. Valori scritti a lato: a sinistra la potenza in %, in alto la velocità in mm/min.',
-  par:[['speeds','Velocità (mm/min)','1000,1500,2000,3000,4000'],['powers','Potenze (%)','10,20,30,40,50'],['iv','Distanza righe (mm)','0.1']],
-  gen(p,E){
-    const sp=nums(p.speeds).slice(0,8),pw=nums(p.powers).slice(0,8),iv=Math.max(0.05,+p.iv||0.1),c=10,g=6,ox=13,oy=8,ops=[];
-    sp.forEach((v,i)=>ops.push(...text(v,ox+i*(c+g)+(c-String(v).length*3)/2,2,LAB)));
-    pw.forEach((v,j)=>ops.push(...text(v,ox-3-String(v).length*3,oy+j*(c+g)+(c-3.6)/2,LAB)));
-    pw.forEach((pc,j)=>sp.forEach((v,i)=>ops.push({k:'fill',x:ox+i*(c+g),y:oy+j*(c+g),w:c,h:c,pct:Math.min(100,pc),F:v,iv})));
-    return ops;}},
- {id:'grigi',name:'Scala di grigi (potenza)',
-  desc:'Dieci strisce incise con potenza crescente alla stessa velocità: serve a capire da che potenza il legno inizia a segnare e quando brucia. Il numero sotto ogni striscia è la potenza in %.',
-  par:[['pmin','Potenza minima (%)','5'],['pmax','Potenza massima (%)','50'],['speed','Velocità (mm/min)','2000'],['iv','Distanza righe (mm)','0.1']],
-  gen(p,E){
-    const a=Math.max(1,+p.pmin||5),b=Math.min(100,+p.pmax||50),n=10,w=8,g=3,h=25,ops=[];
-    for(let i=0;i<n;i++){
-      const pc=Math.round(a+(b-a)*i/(n-1)),x=i*(w+g);
-      ops.push({k:'fill',x,y:0,w,h,pct:pc,F:+p.speed||2000,iv:Math.max(0.05,+p.iv||0.1)});
-      ops.push(...text(pc,x+(w-String(pc).length*3)/2+0.6,h+3,LAB));
-    }
-    return ops;}},
- {id:'fuoco',name:'Fuoco (rampa di linee)',
-  desc:'Undici linee incise sullo stesso legno. Appoggia il legno inclinato (alza di circa 5 mm un lato) in modo che la distanza dal laser cambi lungo le linee: la linea più sottile e più netta indica la messa a fuoco giusta. Le linee sono numerate da 1 a 11.',
-  par:[['pct','Potenza (%)','30'],['speed','Velocità (mm/min)','1500']],
-  gen(p,E){
-    const ops=[];
-    for(let i=0;i<11;i++){
-      const y=i*4;
-      ops.push({k:'line',pts:[[10,y],[60,y]],pct:Math.min(100,+p.pct||30),F:+p.speed||1500});
-      ops.push(...text(i+1,i<9?4:1,y-1.8,LAB));
-    }
-    return ops;}},
- {id:'incastro',name:'Incastro (larghezza della fessura)',
-  desc:'Una piastrina con sette fessure di larghezza diversa. Infila un ritaglio dello stesso legno: la fessura in cui entra a pressione, senza forzare, è la larghezza da usare nei tuoi incastri. Sotto ogni fessura c\'è la larghezza in decimi di millimetro (per esempio 30 = 3,0 mm). Usa i valori di taglio del passo 3.',
-  par:[['t','Spessore del legno (mm)','3'],['step','Differenza tra le fessure (mm)','0.1']],
-  gen(p,E){
-    const t=Math.max(1,+p.t||3),st=Math.max(0.02,+p.step||0.1),n=7,ops=[],c=E.cut();
-    const W=n*10+8,H=30;
-    for(let i=0;i<n;i++){
-      const w=t+(i-3)*st,x=6+i*10+(10-w)/2;
-      ops.push(...text(Math.round(w*10),6+i*10+(10-String(Math.round(w*10)).length*3)/2+0.6,H-9,LAB));
-      ops.push({k:'cut',pts:rect(x,7,w,12),closed:true,pct:c.pct,F:c.F,passes:c.passes});
-    }
-    ops.push({k:'cut',pts:rect(0,0,W,H),closed:true,pct:c.pct,F:c.F,passes:c.passes});
-    return ops;}},
- {id:'misure',name:'Controllo delle misure',
-  desc:'Un quadrato di 50 mm, un cerchio di 50 mm e le diagonali, incisi in modo leggero. Misura con un righello: se non sono 50 mm esatti, la macchina va tarata (passi per millimetro) prima di tagliare pezzi che devono combaciare.',
-  par:[['pct','Potenza (%)','20'],['speed','Velocità (mm/min)','1500']],
-  gen(p,E){
-    const pc=Math.min(100,+p.pct||20),F=+p.speed||1500,ops=[];
-    ops.push({k:'line',pts:rect(0,0,50,50),closed:true,pct:pc,F});
-    ops.push({k:'line',pts:[[0,0],[50,50]],pct:pc,F});ops.push({k:'line',pts:[[50,0],[0,50]],pct:pc,F});
-    const cir=[];for(let i=0;i<72;i++){const a=2*Math.PI*i/72;cir.push([75+25*Math.cos(a),25+25*Math.sin(a)]);}
-    ops.push({k:'line',pts:cir,closed:true,pct:pc,F});
-    ops.push({k:'line',pts:[[50,25],[100,25]],pct:pc,F});ops.push({k:'line',pts:[[75,0],[75,50]],pct:pc,F});
-    return ops;}}
+    return all;}}
 ];
 
 /* ---------- G-code ---------- */
@@ -265,7 +218,8 @@ function card(parent,tp,E){
   const c=document.createElement('div');c.className='pvc';parent.appendChild(c);
   const h=document.createElement('h3');h.textContent=tp.name;c.appendChild(h);
   const d=document.createElement('div');d.className='hint';d.textContent=tp.desc;c.appendChild(d);
-  const g=document.createElement('div');g.className='pvp';c.appendChild(g);
+  const det=document.createElement('details');det.innerHTML='<summary>Valori della prova (si possono lasciare così)</summary>';c.appendChild(det);
+  const g=document.createElement('div');g.className='pvp';det.appendChild(g);
   const val={};
   tp.par.forEach(([id,lab,d0])=>{
     const def=typeof d0==='function'?d0(E):d0;
@@ -295,20 +249,82 @@ function card(parent,tp,E){
   dl.onclick=()=>{if(!cur)return;const b=new Blob([cur.lines.join('\n')+'\n'],{type:'text/plain'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='laserbrio-prova-'+tp.id+'.gcode';a.click();};
   UPDS.push(upd);upd();
 }
+
+/* ---------- scegli i quadratini migliori: laserBrio si ricorda i valori ---------- */
+function picker(box,d,full){
+  const G=parseG(d.g);if(G.length<4||G.some(a=>!a.length))return;
+  const [cs,cp,es,ep]=G;let selC=null,selE=null;
+  const wrap=document.createElement('div');wrap.style.marginTop='8px';box.appendChild(wrap);
+  const mk=(title,S,P,pick)=>{
+    const h=document.createElement('p');h.className='hint';h.textContent=title;wrap.appendChild(h);
+    const t=document.createElement('div');t.style.cssText='display:grid;grid-template-columns:repeat('+S.length+',1fr);gap:6px;max-width:420px';
+    P.forEach(pc=>S.forEach(v=>{
+      const b=document.createElement('button');b.className='btn';b.style.cssText='padding:8px 2px;font-size:13px';b.textContent=pc+'% · '+v;
+      b.onclick=()=>{pick(pc,v);t.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');sv.disabled=false;};
+      t.appendChild(b);
+    }));
+    wrap.appendChild(t);
+  };
+  mk('Taglio: tocca il quadratino che si è staccato bene con la velocità più alta (potenza % · velocità mm/min).',cs,cp,(pc,v)=>{selC=[pc,v];});
+  mk('Incisione: tocca il quadrato con il tono che ti piace, senza bruciare (potenza % · velocità mm/min).',es,ep,(pc,v)=>{selE=[pc,v];});
+  const sv=document.createElement('button');sv.className='btn primary';sv.textContent='Salva questo materiale';sv.disabled=true;sv.style.marginTop='10px';wrap.appendChild(sv);
+  const st=document.createElement('p');st.className='hint';wrap.appendChild(st);
+  sv.onclick=()=>{
+    const m={id:'c_'+Date.now(),name:full,minP:8,maxP:65,speed:2500};
+    if(selE){m.maxP=selE[0];m.minP=Math.max(1,Math.round(selE[0]*0.15));m.speed=selE[1];}
+    if(selC)m.cut={speed:selC[1],passes:1,power:selC[0]};
+    window.Lb.saveMat(m);sv.disabled=true;
+    st.textContent='Salvato: '+full+(selC?' · taglio '+selC[0]+'% a '+selC[1]:'')+(selE?' · incisione fino al '+selE[0]+'% a '+selE[1]:'')+'. Ora lo trovi nell\'elenco dei materiali.';
+  };
+}
+let jsq=null;
+function loadJsQR(){
+  if(window.jsQR)return Promise.resolve();
+  return jsq||(jsq=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';s.onload=res;s.onerror=()=>{jsq=null;rej(new Error('rete'));};document.head.appendChild(s);}));
+}
+async function decodeQR(src){
+  if(window.BarcodeDetector){try{const r=await new BarcodeDetector({formats:['qr_code']}).detect(src);if(r[0]&&r[0].rawValue)return r[0].rawValue;}catch(e){}}
+  await loadJsQR();
+  for(const k of [1,0.6,0.35]){
+    const w=Math.round(src.width*k),h=Math.round(src.height*k),cv=document.createElement('canvas');cv.width=w;cv.height=h;
+    const cx=cv.getContext('2d');cx.drawImage(src,0,0,w,h);
+    const r=window.jsQR(cx.getImageData(0,0,w,h).data,w,h);if(r&&r.data)return r.data;
+  }
+  return null;
+}
+async function readScheda(src,msgEl){
+  msgEl.style.color='';msgEl.textContent='Leggo il QR…';
+  let txt=null;
+  try{txt=await decodeQR(src);}catch(e){msgEl.style.color='var(--bad)';msgEl.textContent='Non riesco a caricare il lettore: serve internet.';return;}
+  if(!txt){msgEl.style.color='var(--bad)';msgEl.textContent='Non trovo il QR. Riprova con più luce, tutto il QR dentro la foto e senza riflessi.';return;}
+  let q=null;try{q=new URL(txt).searchParams;}catch(e){}
+  if(!q||!q.get('m')){msgEl.style.color='var(--bad)';msgEl.textContent='Questo QR non è di una scheda laserBrio.';return;}
+  $('pvOv').hidden=true;document.body.style.overflow='';
+  window.Lb.material({m:q.get('m'),s:q.get('s'),g:q.get('g'),c:q.get('c'),i:q.get('i')});
+}
+function fromFile(f,msgEl){
+  const img=new Image(),u=URL.createObjectURL(f);
+  img.onload=()=>{const k=Math.min(1,2000/Math.max(img.width,img.height)),cv=document.createElement('canvas');cv.width=Math.round(img.width*k);cv.height=Math.round(img.height*k);cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);URL.revokeObjectURL(u);readScheda(cv,msgEl);};
+  img.onerror=()=>{msgEl.style.color='var(--bad)';msgEl.textContent='Non riesco ad aprire la foto.';};
+  img.src=u;
+}
 function open(){
   const E=window.Lb;if(!E){alert('Riprova tra un attimo.');return;}
   css();
   let o=$('pvOv');
   if(!o){
     o=document.createElement('div');o.id='pvOv';
-    o.innerHTML='<div class="in"><div class="top"><h2 style="margin:0">Modelli di prova</h2><button class="btn" id="pvX">Chiudi</button></div><div class="pvc" style="margin-top:10px"><div class="pvp"><label>Nome del materiale<input type="text" id="pvNome" placeholder="es. Compensato pioppo"></label><label>Spessore (mm)<input type="text" id="pvSp" value="3"></label></div></div><p class="hint">Schede di calibrazione generate da laserBrio. Fanne una su ogni nuovo materiale: sul legno restano scritti i valori usati, così scegli quello giusto e lo ricopi nelle impostazioni. Usa un ritaglio dello stesso legno del lavoro vero e imposta l\'origine come al passo 4.</p><div id="pvL"></div></div>';
+    o.innerHTML='<div class="in"><div class="top"><h2 style="margin:0">Modelli di prova</h2><button class="btn" id="pvX">Chiudi</button></div><div class="pvc" style="margin-top:10px"><div class="pvp"><label>Nome del materiale<input type="text" id="pvNome" placeholder="es. Compensato pioppo"></label><label>Spessore (mm)<input type="text" id="pvSp" value="3"></label></div></div><div class="pvc" style="margin-top:10px"><b>Hai già inciso la scheda?</b><p class="hint" style="margin:4px 0 8px">Fotografala con il QR, oppure inquadrala con la camera: poi tocca i quadratini migliori e laserBrio si ricorda i valori.</p><div class="row"><button class="btn primary" id="pvFoto">Fotografa o scegli una foto</button><button class="btn" id="pvVideo">Leggi dal video della camera</button><input type="file" id="pvFile" accept="image/*" capture="environment" hidden></div><p class="hint" id="pvRd"></p></div><p class="hint">Schede di calibrazione generate da laserBrio. Fanne una su ogni nuovo materiale: sul legno restano scritti i valori usati, così scegli quello giusto e lo ricopi nelle impostazioni. Usa un ritaglio dello stesso legno del lavoro vero e imposta l\'origine come al passo 4.</p><div id="pvL"></div></div>';
     document.body.appendChild(o);
     $('pvX').onclick=()=>{o.hidden=true;document.body.style.overflow='';};
     T.forEach(tp=>card($('pvL'),tp,E));
+    $('pvFoto').onclick=()=>$('pvFile').click();
+    $('pvFile').onchange=ev=>{const f=ev.target.files[0];ev.target.value='';if(f)fromFile(f,$('pvRd'));};
+    $('pvVideo').onclick=()=>{const v=$('camVid');if(!v||!v.videoWidth){$('pvRd').style.color='var(--bad)';$('pvRd').textContent='La camera non è accesa: aprila prima (passo 4, "Usa la camera").';return;}const cv=document.createElement('canvas');cv.width=v.videoWidth;cv.height=v.videoHeight;cv.getContext('2d').drawImage(v,0,0);readScheda(cv,$('pvRd'));};
     $('pvNome').oninput=()=>{GL.nome=$('pvNome').value;UPDS.forEach(f=>f());};
     $('pvSp').oninput=()=>{GL.sp=$('pvSp').value;UPDS.forEach(f=>f());};
   }
   o.hidden=false;document.body.style.overflow='hidden';o.scrollTop=0;
 }
-window.Prove={open};
+window.Prove={open,picker};
 })();

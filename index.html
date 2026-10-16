@@ -368,7 +368,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer>CxAdGeM_Fp · Mk 25</footer>
+<footer>CxAdGeM_Fp · Mk 26</footer>
 </main>
 
 <script>
@@ -1034,11 +1034,12 @@ function showMat(d){
   const p=document.createElement('p');p.className='hint';
   p.textContent='Dalla scheda di prova'+(c[1]?': taglio '+c[0]+'% a '+c[1]+' mm/min, '+(c[2]||1)+' passate':'')+(i[2]?'; incisione dal '+i[0]+'% al '+i[1]+'% a '+i[2]+' mm/min':'')+'.';
   box.appendChild(p);
-  const b=document.createElement('button');b.className='btn primary';b.textContent='Salva e usa questo materiale';box.appendChild(b);
+  const b=document.createElement('button');b.className='btn primary';b.textContent='Salva e usa questo materiale';if(c[1]||i[2])box.appendChild(b);
+  if(d.g){const go=()=>Prove.picker(box,d,full);if(window.Prove)go();else{const sc=document.createElement('script');sc.src='prove.js';sc.onload=go;document.head.appendChild(sc);}}
   b.onclick=()=>{
     const m={id:'c_'+Date.now(),name:full,minP:i[0]||8,maxP:i[1]||65,speed:i[2]||2500};
     if(c[1])m.cut={speed:c[1],passes:c[2]||1,power:c[0]||100};
-    customMats.push(m);saveMats();fillMats(m.id);
+    window.Lb.saveMat(m);
     b.disabled=true;b.textContent='Materiale salvato e selezionato';
   };
   const first=$('btnCat').parentNode;first.parentNode.insertBefore(box,first);
@@ -1046,9 +1047,10 @@ function showMat(d){
   return box;
 }
 window.Lb.material=showMat;
+window.Lb.saveMat=m=>{customMats.push(m);saveMats();fillMats(m.id);};
 (function(){
   let q;try{q=new URLSearchParams(location.search);}catch(e){return;}
-  const d={m:q.get('m'),s:q.get('s'),c:q.get('c'),i:q.get('i')};
+  const d={m:q.get('m'),s:q.get('s'),c:q.get('c'),i:q.get('i'),g:q.get('g')};
   if(!d.m||q.get('tel'))return;
   const box=showMat(d);
   if(document.body.classList.contains('telmode'))return;

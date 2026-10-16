@@ -832,5 +832,12 @@ function init(){
   $('impScale').oninput=()=>{redraw();};$('impOut').onchange=redraw;
   $('impDrop').onclick=()=>$('impFile').click();
 }
-window.Proj={plan:build,init,_t:{parseSvg,parseDxf,parseEps,parseAi,readZip,unzipEntry,parseD,flatten}};
+const gz={
+  box(items){let a=1e9,b=1e9,c=-1e9,d=-1e9;for(const it of items||[]){a=Math.min(a,it.x);b=Math.min(b,it.y);c=Math.max(c,it.x+it.w);d=Math.max(d,it.y+it.h);}return (items&&items.length)?{x0:a,y0:b,x1:c,y1:d}:null;},
+  rot:()=>P.rot||0,
+  scale:()=>Number($('impScale').value)||100,
+  setRot(d){d=((d%360)+360)%360;P.rot=d;const e=$('impRot');if(e)e.value=Math.round(d*10)/10;(window.__projRefresh||redraw)();},
+  setScale(p){p=Math.max(5,Math.min(2000,p));$('impScale').value=Math.round(p*100)/100;(window.__projRefresh||redraw)();}
+};
+window.Proj={plan:build,init,gz,_t:{parseSvg,parseDxf,parseEps,parseAi,readZip,unzipEntry,parseD,flatten}};
 })();

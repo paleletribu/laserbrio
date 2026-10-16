@@ -368,7 +368,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer>CxAdGeM_Fp · Mk 26</footer>
+<footer>CxAdGeM_Fp · Mk 27</footer>
 </main>
 
 <script>
@@ -998,6 +998,26 @@ function doRenderSheets(){
 }
 function fileMode(){return document.body.dataset.proj==='file';}
 window.__projChanged=()=>{S.sheetSel=0;doRenderSheets();};
+window.__projRefresh=()=>{doRenderSheets();};window.__gz=()=>S.gz;
+(function(){
+  const cv=$('sheetCanvas');cv.style.touchAction='none';
+  let d=null,pend=false;
+  const pt=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height];};
+  const near=(p,q)=>Math.hypot(p[0]-q[0],p[1]-q[1])<=18;
+  cv.addEventListener('pointerdown',e=>{
+    const g=S.gz;if(!g)return;const p=pt(e);d=null;
+    if(near(p,g.rt))d={k:'r',c:g.c,a0:Math.atan2(p[1]-g.c[1],p[0]-g.c[0]),r0:Proj.gz.rot()};
+    else if(near(p,g.rs))d={k:'s',an:g.an,v:[g.co[0]-g.an[0],g.co[1]-g.an[1]],s0:Proj.gz.scale()};
+    if(d){try{cv.setPointerCapture(e.pointerId);}catch(_){}e.preventDefault();}
+  });
+  cv.addEventListener('pointermove',e=>{
+    if(!d)return;const p=pt(e);
+    if(d.k==='r'){let r=d.r0+(Math.atan2(p[1]-d.c[1],p[0]-d.c[0])-d.a0)*180/Math.PI;const n=Math.round(r/15)*15;r=Math.abs(r-n)<4?n:Math.round(r);d.next=r;}
+    else{const t=((p[0]-d.an[0])*d.v[0]+(p[1]-d.an[1])*d.v[1])/(d.v[0]*d.v[0]+d.v[1]*d.v[1]);d.next=d.s0*Math.max(0.05,t);}
+    if(!pend){pend=true;requestAnimationFrame(()=>{pend=false;if(!d||d.next==null)return;const v=d.next;d.next=null;if(d.k==='r')Proj.gz.setRot(v);else Proj.gz.setScale(v);});}
+  });
+  const up=()=>{d=null;};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+})();
 function setProj(p){
   document.body.dataset.proj=p;
   $('srcStand').classList.toggle('on',p==='stand');$('srcFile').classList.toggle('on',p==='file');
@@ -1070,7 +1090,7 @@ window.setMode=setMode;window.setProj=setProj;window.loadFile=loadFile;
 window.__camApi={
   area:()=>({w:Number($('areaX').value)||400,h:Number($('areaY').value)||400}),
   job:()=>{
-    if(mode()==='taglia'){const sh=S.plan&&S.plan.sheets&&S.plan.sheets[S.sheetSel];return sh?{kind:'cut',w:sh.w,h:sh.h,items:sh.items}:null;}
+    if(mode()==='taglia'){const sh=S.plan&&S.plan.sheets&&S.plan.sheets[S.sheetSel];return sh?{kind:'cut',file:fileMode(),w:sh.w,h:sh.h,items:sh.items}:null;}
     if(!S.img)return null;const d=dims();return d.w>0&&d.h>0?{kind:'img',w:d.w,h:d.h,canvas:$('preview')}:null;
   }
 };
@@ -1114,6 +1134,20 @@ $('v3Rail').onchange=()=>window.Vista3D&&Vista3D.set({rail:$('v3Rail').checked})
 $('v3Exp').oninput=()=>window.Vista3D&&Vista3D.set({explode:Number($('v3Exp').value)/100});
 $('v3Reset').onclick=()=>window.Vista3D&&Vista3D.resetView();
 
+S.gz=null;
+function drawGizmo(cx,sh,sc,H){
+  S.gz=null;
+  if(!fileMode()||!window.Proj||!Proj.gz||!sh||!sh.items.length)return;
+  const b=Proj.gz.box(sh.items);if(!b)return;
+  const x0=b.x0*sc,x1=b.x1*sc,yT=H-b.y1*sc,yB=H-b.y0*sc,mx=(x0+x1)/2;
+  const rt=[mx,Math.max(14,yT-28)],rs=[x1+4,Math.max(8,yT-4)];
+  cx.save();cx.strokeStyle='#c4561a';cx.fillStyle='#fff';cx.lineWidth=1.5;cx.setLineDash([5,4]);cx.strokeRect(x0-4,yT-4,x1-x0+8,yB-yT+8);cx.setLineDash([]);
+  cx.beginPath();cx.moveTo(mx,yT-4);cx.lineTo(rt[0],rt[1]);cx.stroke();
+  cx.beginPath();cx.arc(rt[0],rt[1],8,0,7);cx.fill();cx.stroke();
+  cx.beginPath();cx.rect(rs[0]-7,rs[1]-7,14,14);cx.fill();cx.stroke();
+  cx.restore();
+  S.gz={rt,rs,c:[mx,(yT+yB)/2],an:[x0,yB],co:[x1,yT]};
+}
 function drawSheet(sh){
   const aw=Number($('areaX').value)||400,ah=Number($('areaY').value)||400;
   const cv=$('sheetCanvas'),sc=600/aw;
@@ -1133,6 +1167,7 @@ function drawSheet(sh){
     }
     if(it.w>45&&it.h>20){cx.fillStyle='#3c2314';cx.font='11px system-ui,sans-serif';cx.fillText(it.name,X(it.x)+4,Y(it.y+it.h)+13);}
   }
+  drawGizmo(cx,sh,sc,cv.height);
 }
 
 /* ---------- interfaccia ---------- */

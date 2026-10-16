@@ -1,5 +1,5 @@
 // Mette in memoria la pagina: si apre anche senza internet. Quando c'è rete prende la versione nuova.
-const C='laserbrio-mk19';
+const C='laserbrio-mk20';
 const F=['./','index.html','vista3d.js','camera.js','telefono.js','progetto.js','catalogo.js','controllo.js','manifest.webmanifest','icon-192.png','icon-512.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(F)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))).then(()=>self.clients.claim()));});

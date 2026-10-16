@@ -367,7 +367,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer>CxAdGeM_Fp · Mk 19</footer>
+<footer>CxAdGeM_Fp · Mk 20</footer>
 </main>
 
 <script>
@@ -485,6 +485,29 @@ function stadiumPts(x1,y1,x2,y2,r){
   for(let i=0;i<=n;i++){const a=dir+Math.PI/2+Math.PI*i/n;o.push([x1+r*Math.cos(a),y1+r*Math.sin(a)]);}
   return o;
 }
+// angoli arrotondati (raggio r) per far venire i pezzi piu' eleganti e senza spigoli vivi
+function roundPoly(pts,r){
+  const n=pts.length,o=[];
+  for(let i=0;i<n;i++){
+    const A=pts[(i+n-1)%n],B=pts[i],C=pts[(i+1)%n];
+    let ux=A[0]-B[0],uy=A[1]-B[1],vx=C[0]-B[0],vy=C[1]-B[1];
+    const lu=Math.hypot(ux,uy),lv=Math.hypot(vx,vy);
+    if(lu<1e-6||lv<1e-6){o.push(B);continue;}
+    ux/=lu;uy/=lu;vx/=lv;vy/=lv;
+    const al=Math.acos(Math.max(-1,Math.min(1,ux*vx+uy*vy)));
+    if(al<0.05||al>Math.PI-0.05){o.push(B);continue;}
+    const tn=Math.tan(al/2),lim=0.45*Math.min(lu,lv);
+    const rr=Math.min(r,lim*tn),d=rr/tn;
+    let bx=ux+vx,by=uy+vy;const bl=Math.hypot(bx,by);bx/=bl;by/=bl;
+    const dc=rr/Math.sin(al/2),cx=B[0]+bx*dc,cy=B[1]+by*dc;
+    const p1=[B[0]+ux*d,B[1]+uy*d],p2=[B[0]+vx*d,B[1]+vy*d];
+    const a1=Math.atan2(p1[1]-cy,p1[0]-cx),a2=Math.atan2(p2[1]-cy,p2[0]-cx);
+    let da=a2-a1;while(da>Math.PI)da-=2*Math.PI;while(da<-Math.PI)da+=2*Math.PI;
+    const st=Math.max(3,Math.ceil(Math.abs(da)*rr/0.6));
+    for(let k=0;k<=st;k++){const a=a1+da*k/st;o.push([cx+rr*Math.cos(a),cy+rr*Math.sin(a)]);}
+  }
+  return o;
+}
 function bboxOf(paths){
   let a=1e9,b=1e9,c=-1e9,d=-1e9;
   for(const p of paths)for(const q of p.pts){a=Math.min(a,q[0]);b=Math.min(b,q[1]);c=Math.max(c,q[0]);d=Math.max(d,q[1]);}
@@ -509,7 +532,7 @@ function phoneStandPlan(P,area){
 
   // 1) Montante (si incolla in n strati)
   {
-    const paths=[{pts:rectPts(0,0,pw,Hp)}];
+    const paths=[{pts:roundPoly(rectPts(0,0,pw,Hp),7)}];
     for(const s of [-1,1])paths.push({hole:true,pts:circlePts(pw/2+s*15,boltY-ys,holeR)});
     paths.push({hole:true,pts:rectPts(pw/2-(tw+2*tol)/2,ytop-n*t-tol-ys,tw+2*tol,n*t+2*tol)});
     parts.push({name:'Montante',tag:'montante',count:n,paths:paths});
@@ -517,19 +540,19 @@ function phoneStandPlan(P,area){
   // 2) Piastra interna
   {
     const h=(P.Hr+22)-ys;
-    const paths=[{pts:rectPts(0,0,pw,h)}];
+    const paths=[{pts:roundPoly(rectPts(0,0,pw,h),6)}];
     for(const s of [-1,1])paths.push({hole:true,pts:circlePts(pw/2+s*15,boltY-ys,holeR)});
     parts.push({name:'Piastra interna',tag:'piastra',count:nIn,paths:paths});
   }
   // 3) Braccio: strati di sotto (solo braccio)
   {
     const pts=[[-tabL,-tw/2],[0,-tw/2],[0,-aw/2],[R+cb,-aw/2],[R+cb,aw/2],[0,aw/2],[0,tw/2],[-tabL,tw/2]];
-    parts.push({name:'Braccio (strati di sotto)',tag:'braccioP',count:n-2,paths:[{pts:pts}]});
+    parts.push({name:'Braccio (strati di sotto)',tag:'braccioP',count:n-2,paths:[{pts:roundPoly(pts,4)}]});
   }
   // 4) Braccio con culla: 2 strati di sopra
   {
     const pts=[[-tabL,-tw/2],[0,-tw/2],[0,-aw/2],[R,-aw/2],[R,-zout],[R+Lf,-zout],[R+Lf,-zin],[R+cb,-zin],[R+cb,zin],[R+Lf,zin],[R+Lf,zout],[R,zout],[R,aw/2],[0,aw/2],[0,tw/2],[-tabL,tw/2]];
-    const paths=[{pts:pts}];
+    const paths=[{pts:roundPoly(pts,4)}];
     const u0=R+cb+5;
     for(const s of [-1,1])for(const uc of [u0+jawEdge,u0+Lj-jawEdge])
       paths.push({hole:true,pts:stadiumPts(uc,s*zhMin,uc,s*zhMax,holeR)});
@@ -537,10 +560,10 @@ function phoneStandPlan(P,area){
   }
   // 5) Ganasce: mensola e strisce
   {
-    const jz=lipW+footOff,paths=[{pts:rectPts(0,0,Lj,jz+8)}];
+    const jz=lipW+footOff,paths=[{pts:roundPoly(rectPts(0,0,Lj,jz+8),5)}];
     for(const x of [jawEdge,Lj-jawEdge])paths.push({hole:true,pts:circlePts(x,jz,holeR)});
     parts.push({name:'Ganascia: mensola',tag:'mensola',count:2,paths:paths});
-    parts.push({name:'Ganascia: striscia',tag:'striscia',count:2*k,paths:[{pts:rectPts(0,0,Lj,wallT)}]});
+    parts.push({name:'Ganascia: striscia',tag:'striscia',count:2*k,paths:[{pts:roundPoly(rectPts(0,0,Lj,wallT),2.5)}]});
   }
 
   const sheets=packSheets(parts,area.w,area.h);

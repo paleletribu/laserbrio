@@ -592,7 +592,7 @@ function build(area){
   if(!list.length)return {error:'Nessun tratto selezionato: accendi almeno un colore nell\'elenco qui sopra.'};
   list=transformSubs(list);
   let all=[];for(const s of list)for(const p of s.pts)all.push(p);
-  const bb=bboxOf(all),m=3,gap=4;
+  const bb=bboxOf(all),gap=4;let m=3;
   P.baseW=bb.maxx-bb.minx;P.baseH=bb.maxy-bb.miny;
   if(!((bb.maxx-bb.minx)>0&&(bb.maxy-bb.miny)>0))return {error:'Il disegno non ha dimensioni.'};
   // tutti i tratti, con Y girata (nel file la Y va verso il basso) e scala applicata
@@ -640,7 +640,8 @@ function build(area){
     let b=q.b;for(const k of q.kids)b={minx:Math.min(b.minx,k.b.minx),miny:Math.min(b.miny,k.b.miny),maxx:Math.max(b.maxx,k.b.maxx),maxy:Math.max(b.maxy,k.b.maxy)};
     q.box=b;q.pw=b.maxx-b.minx;q.ph=b.maxy-b.miny;
   }
-  const W=area.w-2*m,H=area.h-2*m;
+  if(pieces.some(q=>q.pw>area.w-2*m||q.ph>area.h-2*m)&&pieces.every(q=>q.pw<=area.w+0.6&&q.ph<=area.h+0.6))m=0; // pezzi lunghi quanto il foglio: niente margine
+  const W=area.w-2*m+(m?0:0.6),H=area.h-2*m+(m?0:0.6);
   const wholeW=(bb.maxx-bb.minx)*sc,wholeH=(bb.maxy-bb.miny)*sc;
   const sheets=[];
   const mk=(its)=>{

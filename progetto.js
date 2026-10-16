@@ -595,6 +595,17 @@ function build(area){
   const bb=bboxOf(all),gap=4;let m=3;
   P.baseW=bb.maxx-bb.minx;P.baseH=bb.maxy-bb.miny;
   if(!((bb.maxx-bb.minx)>0&&(bb.maxy-bb.miny)>0))return {error:'Il disegno non ha dimensioni.'};
+  if(P.auto){ // appena aperto: se è più grande dell'area lo riduco da solo (si può tornare alla misura originale)
+    P.auto=false;
+    const fit=Math.min((area.w-6)/P.baseW,(area.h-6)/P.baseH)*100;
+    if(fit<sc*100-0.05){
+      const f=Math.max(0.1,Math.floor(fit*10)/10);
+      $('impScale').value=f;P.fitPct=f;
+      const n=$('impAutoNote');if(n){n.hidden=false;n.firstChild.textContent='Il disegno è più grande del foglio ('+Math.round(P.baseW)+' × '+Math.round(P.baseH)+' mm): l\'ho ridotto al '+f+'%. ';}
+      return build(area);
+    }
+    const n=$('impAutoNote');if(n)n.hidden=true;
+  }
   // tutti i tratti, con Y girata (nel file la Y va verso il basso) e scala applicata
   let paths=list.map(s=>({pts:s.pts.map(q=>[(q[0]-bb.minx)*sc,(bb.maxy-q[1])*sc]),closed:s.closed}));
   P.preW=P.baseW*sc;P.preH=P.baseH*sc;
@@ -777,7 +788,7 @@ function syncDims(){
   if(document.activeElement!==h)h.value=Math.round(P.baseH*sc*10)/10;
 }
 function resetEdit(){
-  P.rot=0;P.flip=false;
+  P.rot=0;P.flip=false;P.auto=true;const an=$('impAutoNote');if(an)an.hidden=true;const ob=$('impOrig'),fb=$('impFit');if(ob)ob.hidden=false;if(fb)fb.hidden=true;
   for(const [id,v] of [['impCopies','1'],['impRot','0'],['impScale','100']]){const e=$(id);if(e)e.value=v;}
   const c=$('impCrop');if(c){c.checked=false;$('impCropBox').hidden=true;}
 }
@@ -788,6 +799,7 @@ function buildEditUi(){
   d.innerHTML='<p style="margin:12px 0 4px"><b>Modifica il progetto</b></p>'
    +'<div class="grid2"><div><label for="impW">Larghezza (mm)</label><input type="number" id="impW" min="1" step="0.1"></div>'
    +'<div><label for="impH">Altezza (mm)</label><input type="number" id="impH" min="1" step="0.1"></div></div>'
+   +'<p class="hint" id="impAutoNote" hidden style="margin-top:4px"><span></span><button class="btn" id="impOrig" style="padding:4px 10px">Vedi misura originale</button> <button class="btn" id="impFit" style="padding:4px 10px" hidden>Adatta al foglio</button></p>'
    +'<p class="hint" style="margin-top:4px">Cambia una misura e l\'altra si adatta (le proporzioni restano uguali).</p>'
    +'<div class="row" style="margin-top:8px"><button class="btn" id="impRL">↺ 90°</button><button class="btn" id="impRR">↻ 90°</button><button class="btn" id="impFl">⇋ Specchia</button>'
    +'<label style="margin:0 0 0 6px">Angolo</label><input type="number" id="impRot" value="0" step="1" style="width:80px"> °</div>'
@@ -805,6 +817,8 @@ function buildEditUi(){
   $('impFl').onclick=()=>{P.flip=!P.flip;redraw();};
   $('impRot').oninput=()=>{P.rot=Number($('impRot').value)||0;redraw();};
   $('impCopies').oninput=redraw;
+  $('impOrig').onclick=()=>{$('impScale').value=100;$('impOrig').hidden=true;$('impFit').hidden=false;redraw();};
+  $('impFit').onclick=()=>{$('impScale').value=P.fitPct||100;$('impFit').hidden=true;$('impOrig').hidden=false;redraw();};
   $('impCrop').onchange=()=>{
     $('impCropBox').hidden=!$('impCrop').checked;
     if($('impCrop').checked){$('impCx').value=0;$('impCy').value=0;$('impCw').value=Math.round((P.preW||P.baseW||0)*10)/10;$('impCh').value=Math.round((P.preH||P.baseH||0)*10)/10;}

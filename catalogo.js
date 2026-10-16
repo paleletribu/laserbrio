@@ -142,7 +142,10 @@ async function addNew(){
   const x=document.createElement('button');x.className='btn';x.style.marginTop='12px';x.textContent='Chiudi';x.onclick=()=>$('catDet').remove();
   try{
     if(ROOT.requestPermission){const p=await ROOT.requestPermission({mode:'readwrite'});if(p!=='granted')throw new Error('Serve il permesso di scrittura sulla cartella per aggiornare catalogo.json.');}
-    const known=new Set(DB.items.map(i=>i[5]));
+    const seenId=new Set(),dd=[];
+    for(const i of DB.items){if(/^\d+$/.test(i[0])){if(seenId.has(i[0]))continue;seenId.add(i[0]);}dd.push(i);}
+    const removed=DB.items.length-dd.length;DB.items=dd;
+    const known=new Set(DB.items.map(i=>i[5])),uid='n'+Date.now().toString(36);
     const skip=[...DB.raw.map(r=>r[0]),...DB.eng.map(r=>r[1]),...DB.items.filter(i=>!/\.zip$/i.test(i[5])).map(i=>i[5])];
     const under=p=>skip.some(s=>p===s||p.startsWith(s+'/'));
     const newItems=[],newRaw=[];let seen=0,nid=0;
@@ -155,8 +158,9 @@ async function addNew(){
       }
       const p=n=>rel?rel+'/'+n:n;
       for(const f of files)if(/\.zip$/i.test(f)&&!known.has(p(f))){
+        const id0=(f.match(/^\d+/)||[''])[0];if(id0&&seenId.has(id0))continue;if(id0)seenId.add(id0);
         const path=p(f),nm=cleanName(f),mac=macroNew(path),fe=feasNew(path,mac);
-        newItems.push([(f.match(/^\d+/)||['n'+(++nid)])[0],nm,f.replace(/\.zip$/i,''),mac,rel?rel.split('/').pop():'Importati',path,'',['zip'],fe[0],fe[1]]);
+        newItems.push([id0||uid+(++nid),nm,f.replace(/\.zip$/i,''),mac,rel?rel.split('/').pop():'Importati',path,'',['zip'],fe[0],fe[1]]);
       }
       const vec=files.filter(f=>VEXT.test(f));
       if(rel&&vec.length){
@@ -164,21 +168,22 @@ async function addNew(){
         const nm=cleanName(rel.split('/').pop()),mac=macroNew(rel),fe=feasNew(rel,mac);
         if(vec.length>=10){newRaw.push([rel,nm,mac,files.length,ex,fe[0],fe[1]]);}
         else{
+          const id1=(rel.split('/').pop().match(/^\d+/)||[''])[0];if(id1&&seenId.has(id1))return;if(id1)seenId.add(id1);
           const im=files.filter(f=>/\.(jpe?g|png)$/i.test(f)),ph=im.find(f=>/photo/i.test(f))||im[0]||'';
-          newItems.push([(rel.split('/').pop().match(/^\d+/)||['n'+(++nid)])[0],nm,rel.split('/').pop(),mac,rel.split('/').slice(-2,-1)[0]||'Importati',rel,ph?p(ph):'',Object.keys(ex),fe[0],fe[1]]);
+          newItems.push([id1||uid+(++nid),nm,rel.split('/').pop(),mac,rel.split('/').slice(-2,-1)[0]||'Importati',rel,ph?p(ph):'',Object.keys(ex),fe[0],fe[1]]);
         }
         return;
       }
       if(depth<6)for(const d of dirs)await walk(d,p(d.name),depth+1);
     }
     await walk(ROOT,'',0);
-    if(!newItems.length&&!newRaw.length){msg.textContent='Nessun progetto nuovo: tutto quello che c\'è nella cartella è già nel catalogo ('+seen+' voci controllate).';}
+    if(!newItems.length&&!newRaw.length&&!removed){msg.textContent='Nessun progetto nuovo: tutto quello che c\'è nella cartella è già nel catalogo ('+seen+' voci controllate).';}
     else{
       DB.items.push(...newItems);DB.raw.push(...newRaw);
       const old=await (await ROOT.getFileHandle('catalogo.json')).getFile();
       const bk=await ROOT.getFileHandle('catalogo-prima.json',{create:true});let w=await bk.createWritable();await w.write(await old.text());await w.close();
       const fh=await ROOT.getFileHandle('catalogo.json');w=await fh.createWritable();await w.write(JSON.stringify(DB));await w.close();
-      msg.textContent='Aggiunti '+newItems.length+' progetti e '+newRaw.length+' raccolte. I nomi restano come sono nei file (non vengono tradotti), e la fattibilità sull\'S9 è una stima automatica dallo spessore nel nome. Ho tenuto una copia del catalogo precedente (catalogo-prima.json).';
+      msg.textContent='Aggiunti '+newItems.length+' progetti e '+newRaw.length+' raccolte'+(removed?' (tolti '+removed+' doppioni)':'')+'. I nomi restano come sono nei file (non vengono tradotti), e la fattibilità sull\'S9 è una stima automatica dallo spessore nel nome. Ho tenuto una copia del catalogo precedente (catalogo-prima.json).';
       render();
     }
   }catch(e){msg.textContent='Non riesco ad aggiornare: '+(e.message||e);msg.style.color='var(--bad)';}

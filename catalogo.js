@@ -340,11 +340,21 @@ function sheet(){
   document.body.appendChild(d);return b;
 }
 function line(b,tag,txt,cls){const e=document.createElement(tag);if(cls)e.className=cls;e.textContent=txt;b.appendChild(e);return e;}
+function zoom(u){
+  if(!u)return;
+  const o=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;cursor:zoom-out;padding:8px';
+  const im=document.createElement('img');im.src=u;im.style.cssText='max-width:100%;max-height:100%;object-fit:contain;background:#fff;border-radius:6px';
+  const x=document.createElement('div');x.textContent='✕';x.style.cssText='position:absolute;top:10px;right:16px;color:#fff;font-size:28px';
+  const k=e=>{if(e.key==='Escape')close();};
+  const close=()=>{o.remove();document.removeEventListener('keydown',k);};
+  o.onclick=close;document.addEventListener('keydown',k);
+  o.appendChild(im);o.appendChild(x);document.body.appendChild(o);
+}
 async function detail(i){
   const b=sheet(),[id,it,orig,mac,sub,path,ph,fm,fe,why]=i;
-  if(ph){const im=document.createElement('img');im.alt=it;b.appendChild(im);photoUrl(ph).then(u=>{if(u)im.src=u;else im.remove();});}
+  if(ph){const im=document.createElement('img');im.alt=it;b.appendChild(im);im.style.cursor='zoom-in';im.onclick=()=>zoom(im.src);photoUrl(ph).then(u=>{if(u)im.src=u;else im.remove();});}
   else{const t=document.createElement('div');t.className='th';t.style.cssText='height:160px;border-radius:10px;margin-bottom:10px;display:flex;align-items:center;justify-content:center';window.__ph(t,mac,it);b.appendChild(t);
-    if(/\.zip$/i.test(path))zipPhoto(path).then(u=>{if(u){t.textContent='';t.style.height='';t.style.background='url("'+u+'") center/contain no-repeat #f3ebe0';t.style.height='260px';}});}
+    (/\.zip$/i.test(path)?zipPhoto(path):vecFolder(path)).then(u=>{if(u){t.textContent='';t.style.background='url("'+u+'") center/contain no-repeat #f3ebe0';t.style.height='260px';t.style.cursor='zoom-in';t.onclick=()=>zoom(u);}});}
   line(b,'h3',it).style.margin='0 0 4px';
   if(orig&&orig!==it)line(b,'div','Nome originale: '+orig,'hint');
   line(b,'div',mac+' › '+sub,'hint');

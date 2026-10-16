@@ -353,10 +353,14 @@ async function pick(i){
   }catch(err){msg(err.message||'Non riesco ad aprire il file.',true);}
 }
 function init(){
-  $('impFile').onchange=async ev=>{
-    const f=ev.target.files[0];if(!f)return;
+  const openAny=async f=>{
     if(/\.zip$/i.test(f.name)||f.type==='application/zip')await openZip(f,f.name,false);
     else{P.stack=[];P.cur=null;$('impList').innerHTML='';$('impCount').textContent='';$('impPhoto').hidden=true;await useSvgText(await f.text(),f.name);}
+  };
+  Proj.openFile=openAny;
+  $('impFile').onchange=async ev=>{
+    const f=ev.target.files[0];if(!f)return;
+    await openAny(f);
     ev.target.value='';
   };
   $('impList').onchange=async()=>{

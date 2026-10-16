@@ -101,6 +101,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
 <div class="row" style="margin-bottom:14px">
   <button class="btn big modebtn on" id="modeI">Incidi un'immagine</button>
   <button class="btn big modebtn" id="modeT">Taglia un progetto</button>
+  <button class="btn big modebtn" id="btnCat">Catalogo progetti</button>
 </div>
 
 <section class="card" id="s1">
@@ -366,7 +367,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer>CxAdGeM_Fp · Mk 12</footer>
+<footer>CxAdGeM_Fp · Mk 13</footer>
 </main>
 
 <script>
@@ -985,8 +986,14 @@ function setProj(p){
   }
   S.sheetSel=0;doRenderSheets();
 }
+$('btnCat').onclick=()=>{
+  if(window.Cat){Cat.open();return;}
+  const sc=document.createElement('script');sc.src='catalogo.js';sc.onload=()=>Cat.open();
+  sc.onerror=()=>alert('Non riesco a caricare il catalogo.');document.head.appendChild(sc);
+};
 $('srcStand').onclick=()=>setProj('stand');
 $('srcFile').onclick=()=>setProj('file');
+window.setMode=setMode;window.setProj=setProj;window.loadFile=loadFile;
 /* ---------- camera (si carica solo quando apri il riquadro) ---------- */
 window.__camApi={
   area:()=>({w:Number($('areaX').value)||400,h:Number($('areaY').value)||400}),

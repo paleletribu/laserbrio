@@ -225,6 +225,153 @@ function parseSvg(text){
   return {subs,layers,sheetW,sheetH};
 }
 
+/* ---------- EPS e AI (PDF): solo i tratti ---------- */
+function finishSubs(subs){
+  if(!subs.length)throw new Error('In questo file non ci sono linee da tagliare.');
+  let a=1e18,b=1e18,c=-1e18,d=-1e18;
+  for(const s of subs)for(const p of s.pts){if(p[0]<a)a=p[0];if(p[0]>c)c=p[0];if(p[1]<b)b=p[1];if(p[1]>d)d=p[1];}
+  for(const s of subs)s.pts=s.pts.map(p=>[p[0]-a,d-p[1]]);
+  const layers={};
+  for(const s of subs){let l=layers[s.key];if(!l)l=layers[s.key]={key:s.key,n:0,len:0};l.n++;for(let i=1;i<s.pts.length;i++)l.len+=Math.hypot(s.pts[i][0]-s.pts[i-1][0],s.pts[i][1]-s.pts[i-1][1]);}
+  return {subs,layers,sheetW:c-a,sheetH:d-b};
+}
+function pathOps(tokens,subs,key,useCm){
+  const K=25.4/72,NUM=/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/;
+  let st=[],cur=null,cx=0,cy=0,sx=0,sy=0,clip=false;
+  let m=[1,0,0,1,0,0];const mst=[];
+  const T=(x,y)=>[(m[0]*x+m[2]*y+m[4])*K,(m[1]*x+m[3]*y+m[5])*K];
+  const bez=(x1,y1,x2,y2,x3,y3)=>{
+    const n=10,x0=cx,y0=cy;
+    for(let i=1;i<=n;i++){const t=i/n,u=1-t;
+      cur.push(T(u*u*u*x0+3*u*u*t*x1+3*u*t*t*x2+t*t*t*x3,u*u*u*y0+3*u*u*t*y1+3*u*t*t*y2+t*t*t*y3));}
+    cx=x3;cy=y3;
+  };
+  const pending=[];
+  const paint=()=>{ // fine tracciato
+    if(cur)pending.push({pts:cur,closed:false});cur=null;
+    if(!clip)for(const p of pending)subs.push({pts:p.pts,closed:p.closed,key});
+    pending.length=0;clip=false;
+  };
+  const closeCur=()=>{
+    if(cur&&cur.length>1){
+      let pts=cur,closed=true;
+      if(pts.length>2&&Math.hypot(pts[0][0]-pts[pts.length-1][0],pts[0][1]-pts[pts.length-1][1])<0.02)pts=pts.slice(0,-1);
+      if(pts.length>=3)pending.push({pts,closed:true});
+    }
+    cur=null;cx=sx;cy=sy;
+  };
+  const open=()=>{if(cur&&cur.length>1){pending.push({pts:cur,closed:false});}cur=null;};
+  for(let i=0;i<tokens.length;i++){
+    const t=tokens[i];
+    if(NUM.test(t)){st.push(parseFloat(t));continue;}
+    const n=st.length;
+    switch(t){
+      case 'm':case 'moveto':case 'M':
+        if(n>=2){open();cx=sx=st[n-2];cy=sy=st[n-1];cur=[T(cx,cy)];}break;
+      case 'l':case 'lineto':case 'L':
+        if(n>=2&&cur){cx=st[n-2];cy=st[n-1];cur.push(T(cx,cy));}break;
+      case 'c':case 'curveto':case 'C':
+        if(n>=6&&cur)bez(st[n-6],st[n-5],st[n-4],st[n-3],st[n-2],st[n-1]);break;
+      case 'v':if(n>=4&&cur)bez(cx,cy,st[n-4],st[n-3],st[n-2],st[n-1]);break;
+      case 'y':if(n>=4&&cur)bez(st[n-4],st[n-3],st[n-2],st[n-1],st[n-2],st[n-1]);break;
+      case 'h':case 'closepath':case '@c':case 'cp':case 'Z':closeCur();break;
+      case 're':if(n>=4){open();const x=st[n-4],y=st[n-3],w=st[n-2],h=st[n-1];cur=[T(x,y),T(x+w,y),T(x+w,y+h),T(x,y+h)];pending.push({pts:cur,closed:true});cur=null;}break;
+      case 'n':case 'N':cur=null;pending.length=0;clip=false;break;
+      case 'W':case 'W*':case 'clip':case 'eoclip':clip=true;break;
+      case 'S':case 's':case 'f':case 'F':case 'f*':case 'B':case 'B*':case 'b':case 'b*':case 'stroke':case 'fill':case 'eofill':case '@F':
+        if(t==='s'||t==='b'||t==='b*')closeCur();
+        paint();break;
+      case 'q':if(useCm)mst.push(m.slice());break;
+      case 'Q':if(useCm&&mst.length)m=mst.pop();break;
+      case 'cm':if(useCm&&n>=6){const a=st.slice(n-6);m=[m[0]*a[0]+m[2]*a[1],m[1]*a[0]+m[3]*a[1],m[0]*a[2]+m[2]*a[3],m[1]*a[2]+m[3]*a[3],m[0]*a[4]+m[2]*a[5]+m[4],m[1]*a[4]+m[3]*a[5]+m[5]];}break;
+    }
+    st=[];
+  }
+  open();paint();
+}
+function parseEps(text){
+  const a=text.indexOf('%!PS');
+  let s=a>0?text.slice(a):text;
+  const e=s.indexOf('%%Trailer');if(e>0)s=s.slice(0,e);
+  let k=s.indexOf('%%EndSetup');if(k<0)k=s.indexOf('%%EndProlog');if(k<0)k=0;
+  s=s.slice(k).replace(/%[^\n\r]*/g,' ');
+  const subs=[];
+  pathOps(s.split(/\s+/).filter(Boolean),subs,'tratti',false);
+  return finishSubs(subs);
+}
+async function inflate(u8){
+  for(const fmt of ['deflate','deflate-raw']){
+    try{
+      const ds=new DecompressionStream(fmt),w=ds.writable.getWriter();
+      w.write(fmt==='deflate-raw'?u8.subarray(2):u8).catch(()=>{});w.close().catch(()=>{});
+      return new Uint8Array(await new Response(ds.readable).arrayBuffer());
+    }catch(_){}
+  }
+  return null;
+}
+function ahex(u8){
+  const o=[];let h=-1;
+  for(const c of u8){
+    if(c===62)break;
+    let v=c>=48&&c<=57?c-48:c>=65&&c<=70?c-55:c>=97&&c<=102?c-87:-1;
+    if(v<0)continue;
+    if(h<0)h=v;else{o.push(h*16+v);h=-1;}
+  }
+  if(h>=0)o.push(h*16);
+  return new Uint8Array(o);
+}
+function a85(u8){
+  const o=[];let g=[];
+  for(let i=0;i<u8.length;i++){
+    const c=u8[i];
+    if(c===126)break;
+    if(c<=32)continue;
+    if(c===122&&!g.length){o.push(0,0,0,0);continue;}
+    if(c<33||c>117)continue;
+    g.push(c-33);
+    if(g.length===5){let v=0;for(const x of g)v=v*85+x;o.push((v>>>24)&255,(v>>>16)&255,(v>>>8)&255,v&255);g=[];}
+  }
+  if(g.length>1){const n=g.length;while(g.length<5)g.push(84);let v=0;for(const x of g)v=v*85+x;const b=[(v>>>24)&255,(v>>>16)&255,(v>>>8)&255,v&255];for(let i=0;i<n-1;i++)o.push(b[i]);}
+  return new Uint8Array(o);
+}
+async function parseAi(u8){
+  let head='';for(let i=0;i<Math.min(8,u8.length);i++)head+=String.fromCharCode(u8[i]);
+  if(!head.startsWith('%PDF'))return parseEps(new TextDecoder('latin1').decode(u8));
+  const s=new TextDecoder('latin1').decode(u8);
+  let subs=[],psSubs=null;let i=0;
+  while((i=s.indexOf('stream',i))>=0){
+    if(s.slice(i-3,i).trim().endsWith('end')){i+=6;continue;}
+    let st=i+6;if(s[st]==='\r')st++;if(s[st]==='\n')st++;
+    const en=s.indexOf('endstream',st);if(en<0)break;
+    const dict=s.slice(Math.max(0,i-500),i),d=dict.slice(dict.lastIndexOf('obj')>=0?dict.lastIndexOf('obj'):0);
+    i=en+9;
+    if(/\/Subtype\s*\/Image|\/Type\s*\/XRef|\/ObjStm|\/Metadata/.test(d))continue;
+    let bytes=u8.subarray(st,en);
+    const fm=d.match(/\/Filter\s*(\[[^\]]*\]|\/\w+)/);
+    const fl=fm?(fm[1].match(/\/\w+/g)||[]).map(x=>x.slice(1)):[];
+    let bad=false;
+    for(const f of fl){
+      if(f==='FlateDecode'||f==='Fl'){bytes=await inflate(bytes);}
+      else if(f==='ASCII85Decode'||f==='A85'){bytes=a85(bytes);}
+      else if(f==='ASCIIHexDecode'||f==='AHx'){bytes=ahex(bytes);}
+      else{bad=true;break;}
+      if(!bytes){bad=true;break;}
+    }
+    if(bad)continue;
+    if(bytes.length>60e6)continue;
+    const txt=new TextDecoder('latin1').decode(bytes);
+    if(txt.startsWith('%!PS')){
+      const k=txt.indexOf('%%EndSetup');
+      psSubs=psSubs||[];
+      pathOps(txt.slice(k>0?k:0).replace(/%[^\n\r]*/g,' ').split(/\s+/).filter(Boolean),psSubs,'tratti',false);
+      continue;
+    }
+    if(!/[\d.]\s+[ml]\s/.test(txt.slice(0,4000)))continue;
+    pathOps(txt.replace(/%[^\n\r]*/g,' ').split(/\s+/).filter(Boolean),subs,'tratti',true);
+  }
+  return finishSubs(psSubs&&psSubs.length>=subs.length?psSubs:subs);
+}
+
 function parseDxf(text){
   const L=text.split(/\r?\n/);
   const pr=[];
@@ -490,10 +637,14 @@ function fillLayers(){
     box.appendChild(lab);
   }
 }
-async function useSvgText(text,name){
+async function useSvgText(text,name,bytes){
   P.svg=null;
   try{
-    P.svg=/\.dxf$/i.test(name)?parseDxf(text):parseSvg(text);P.name=name.replace(/\.(svg|dxf)$/i,'').replace(/^.*[\\/]/,'');
+    if(/\.(ai|eps)$/i.test(name)){
+      const u=bytes||new TextEncoder().encode(text);
+      P.svg=/^%PDF/.test(String.fromCharCode(...u.subarray(0,4)))?await parseAi(u):parseEps(new TextDecoder('latin1').decode(u));
+    }else P.svg=/\.dxf$/i.test(name)?parseDxf(text):parseSvg(text);
+    P.name=name.replace(/\.(svg|dxf|ai|eps)$/i,'').replace(/^.*[\\/]/,'');
     if(!P.svg.subs.length)throw new Error('In questo file non ci sono linee da tagliare.');
     P.err='';fillLayers();
     const b=P.svg;msg('Caricato: '+P.name+'. Foglio del file '+Math.round(b.sheetW)+' × '+Math.round(b.sheetH)+' mm, '+b.subs.length+' tratti.');
@@ -507,13 +658,13 @@ function showList(){
   if(P.stack.length>1){const o=document.createElement('option');o.value='..';o.textContent='⬆ Torna indietro';sel.appendChild(o);}
   for(let i=0;i<cur.entries.length;i++){
     const e=cur.entries[i],n=e.name.toLowerCase();
-    if(!(n.endsWith('.svg')||n.endsWith('.dxf')||n.endsWith('.zip')))continue;
+    if(!(/\.(svg|dxf|eps|ai|zip)$/.test(n)))continue;
     total++;
     if(q&&!n.includes(q))continue;
     if(shown>=300)continue;shown++;
     const o=document.createElement('option');o.value=String(i);o.textContent=(n.endsWith('.zip')?'📦 ':'')+e.name+(e.us>1048576?' ('+(e.us/1048576).toFixed(0)+' MB)':'');sel.appendChild(o);
   }
-  $('impCount').textContent=total?(shown+' di '+total+(shown<total?' (scrivi nel filtro per restringere)':'')):'Nessun file SVG, DXF o zip qui dentro.';
+  $('impCount').textContent=total?(shown+' di '+total+(shown<total?' (scrivi nel filtro per restringere)':'')):'Nessun file SVG, DXF, EPS, AI o zip qui dentro.';
   // preferisci subito la prima foto
 }
 async function loadPhoto(){
@@ -534,13 +685,16 @@ async function openZip(blob,label,push){
     P.cur=f;$('impFilter').value='';showList();loadPhoto();
     const svgs=entries.filter(e=>/\.svg$/i.test(e.name));
     const dxfs=entries.filter(e=>/\.dxf$/i.test(e.name));
-    const cand=svgs.length?svgs:dxfs;
+    const epss=entries.filter(e=>/\.eps$/i.test(e.name));
+    const ais=entries.filter(e=>/\.ai$/i.test(e.name));
+    const cand=svgs.length?svgs:dxfs.length?dxfs:epss.length?epss:ais;
+    const kind=svgs.length?'SVG':dxfs.length?'DXF':epss.length?'EPS':'AI';
     if(cand.length){
       const pref=cand.find(e=>/3\s?mm/i.test(e.name))||cand[0];
-      msg(entries.length+' file nello zip, '+cand.length+(svgs.length?' SVG':' DXF')+'.'+(cand.length===1?'':' Ho aperto '+pref.name.split('/').pop()+': se serve un altro spessore sceglilo dall\'elenco.'));
+      msg(entries.length+' file nello zip, '+cand.length+' '+kind+'.'+(cand.length===1?'':' Ho aperto '+pref.name.split('/').pop()+': se serve un altro spessore sceglilo dall\'elenco.'));
       await pick(entries.indexOf(pref));return;
     }
-    if(!entries.some(e=>/\.zip$/i.test(e.name)))msg('Questo zip non contiene SVG (solo '+[...new Set(entries.map(e=>e.name.split('.').pop().toLowerCase()))].slice(0,6).join(', ')+'). Per ora laserBrio legge SVG e DXF.',true);
+    if(!entries.some(e=>/\.zip$/i.test(e.name)))msg('Questo zip non contiene SVG (solo '+[...new Set(entries.map(e=>e.name.split('.').pop().toLowerCase()))].slice(0,6).join(', ')+'). laserBrio legge SVG, DXF, EPS e AI (il CDR no).',true);
   }catch(e){msg(e.message||'Non riesco a leggere lo zip.',true);}
 }
 async function pick(i){
@@ -548,13 +702,13 @@ async function pick(i){
   try{
     const b=await unzipEntry(cur.blob,e);
     if(/\.zip$/i.test(e.name)){await openZip(new Blob([b]),e.name,true);return;}
-    await useSvgText(new TextDecoder('utf-8').decode(b),e.name);
+    await useSvgText(/\.(ai|eps)$/i.test(e.name)?'':new TextDecoder('utf-8').decode(b),e.name,b);
   }catch(err){msg(err.message||'Non riesco ad aprire il file.',true);}
 }
 function init(){
   const openAny=async f=>{
     if(/\.zip$/i.test(f.name)||f.type==='application/zip')await openZip(f,f.name,false);
-    else{P.stack=[];P.cur=null;$('impList').innerHTML='';$('impCount').textContent='';$('impPhoto').hidden=true;await useSvgText(await f.text(),f.name);}
+    else{P.stack=[];P.cur=null;$('impList').innerHTML='';$('impCount').textContent='';$('impPhoto').hidden=true;if(/\.(ai|eps)$/i.test(f.name))await useSvgText('',f.name,new Uint8Array(await f.arrayBuffer()));else await useSvgText(await f.text(),f.name);}
   };
   Proj.openFile=openAny;
   $('impFile').onchange=async ev=>{

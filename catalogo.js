@@ -206,15 +206,16 @@ async function detail(i){
   if(why)line(b,'div',why,'hint');
   line(b,'div','Codice '+id+' · formati: '+fm.join(', '),'hint');
   const r=document.createElement('div');r.className='row';r.style.marginTop='12px';b.appendChild(r);
-  const zip=/\.zip$/i.test(path),can=zip||fm.includes('svg')||fm.includes('dxf');
+  const zip=/\.zip$/i.test(path),can=zip||fm.includes('svg')||fm.includes('dxf')||fm.includes('eps')||fm.includes('ai');
   const go=document.createElement('button');go.className='btn primary big';go.textContent=zip?'Apri e taglia':'Apri nel taglio';go.disabled=!can;
   go.onclick=async()=>{
     try{
       let f;
       if(zip)f=await fileAt(path);
       else{
-        const d=await dirAt(path.split('/')),it2=[];for await(const e of d.values())if(/\.(svg|dxf)$/i.test(e.name))it2.push(e);
-        it2.sort((a,b)=>(/\.svg$/i.test(b.name)?1:0)-(/\.svg$/i.test(a.name)?1:0));
+        const d=await dirAt(path.split('/')),it2=[];for await(const e of d.values())if(/\.(svg|dxf|eps|ai)$/i.test(e.name))it2.push(e);
+        const rk=n=>/\.svg$/i.test(n)?3:/\.dxf$/i.test(n)?2:/\.eps$/i.test(n)?1:0;
+        it2.sort((a,b)=>rk(b.name)-rk(a.name));
         f=await it2[0].getFile();
       }
       $('catDet').remove();$('catOv').hidden=true;document.body.style.overflow='';
@@ -226,7 +227,7 @@ async function detail(i){
   };
   r.appendChild(go);
   const x=document.createElement('button');x.className='btn';x.textContent='Chiudi';x.onclick=()=>$('catDet').remove();r.appendChild(x);
-  if(!can)line(b,'p','Questo progetto è in formato '+fm.filter(f=>f!=='jpg'&&f!=='png').join('/').toUpperCase()+': laserBrio non lo sa ancora aprire (legge SVG e DXF).','hint');
+  if(!can)line(b,'p','Questo progetto è in formato '+fm.filter(f=>f!=='jpg'&&f!=='png').join('/').toUpperCase()+': laserBrio non lo sa aprire (legge SVG, DXF, EPS e AI).','hint');
   else if(zip)line(b,'p','Se lo zip contiene più spessori (3, 4, 6 mm) apro il 3 mm: gli altri sono nell\'elenco.','hint');
 }
 async function openFileHandle(f){
@@ -239,7 +240,7 @@ async function openFileHandle(f){
 async function browse(rel,title){
   const b=sheet();
   line(b,'h3',title).style.margin='0 0 2px';
-  line(b,'div','Cartella: '+rel+' · si aprono i file DXF e SVG (CDR, EPS e AI per ora no).','hint');
+  line(b,'div','Cartella: '+rel+' · si aprono SVG, DXF, EPS e AI (il CDR no).','hint');
   const q=document.createElement('input');q.type='text';q.placeholder='Cerca nel nome';q.style.margin='8px 0';b.appendChild(q);
   const list=document.createElement('div');b.appendChild(list);
   let dirs=[],files=[];
@@ -252,7 +253,7 @@ async function browse(rel,title){
     for(const d of dirs){if(t&&!d.name.toLowerCase().includes(t))continue;if(n++>=300)break;row('📁 '+d.name,true,()=>browse(rel+'/'+d.name,d.name));}
     for(const f of files){
       if(t&&!f.name.toLowerCase().includes(t))continue;if(n++>=300)break;
-      const ok=/\.(svg|dxf)$/i.test(f.name);
+      const ok=/\.(svg|dxf|eps|ai)$/i.test(f.name);
       row((ok?'📐 ':'')+f.name,ok,async()=>{try{openFileHandle(await f.getFile());}catch(e){alert('Non riesco ad aprirlo: '+(e.message||e));}});
     }
     if(n>=300)line(list,'div','Elenco troncato a 300: scrivi nel filtro per restringere.','hint');

@@ -102,6 +102,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   <button class="btn big modebtn on" id="modeI">Incidi un'immagine</button>
   <button class="btn big modebtn" id="modeT">Taglia un progetto</button>
   <button class="btn big modebtn" id="btnCat">Catalogo progetti</button>
+  <button class="btn big modebtn" id="btnProve">Modelli di prova</button>
 </div>
 
 <section class="card" id="s1">
@@ -367,7 +368,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer>CxAdGeM_Fp · Mk 23</footer>
+<footer>CxAdGeM_Fp · Mk 24</footer>
 </main>
 
 <script>
@@ -1016,6 +1017,52 @@ $('btnCat').onclick=()=>{
 };
 $('srcStand').onclick=()=>setProj('stand');
 $('srcFile').onclick=()=>setProj('file');
+$('btnProve').onclick=()=>{
+  if(window.Prove){Prove.open();return;}
+  const sc=document.createElement('script');sc.src='prove.js';sc.onload=()=>Prove.open();
+  sc.onerror=()=>alert('Non riesco a caricare i modelli di prova.');document.head.appendChild(sc);
+};
+window.Lb={startJob:startJob,smax:()=>S.smax,cut:cutParams,area:areaMax,eng:()=>({pmin:Number($('minP').value)||8,pmax:Number($('maxP').value)||65,speed:Number($('speed').value)||2500})};
+/* materiale riconosciuto dal QR inciso sulla scheda (arriva dall'indirizzo del QR o dal telefono) */
+function showMat(d){
+  const nome=String(d.m||'').trim();if(!nome)return;
+  const num=x=>String(x||'').split(',').map(Number),c=num(d.c),i=num(d.i),sp=String(d.s||'').trim();
+  const full=nome+(sp?' '+sp+' mm':'');
+  const old=$('matBox');if(old)old.remove();
+  const box=document.createElement('section');box.className='card';box.id='matBox';box.style.borderColor='var(--accent)';
+  const h=document.createElement('h2');h.textContent='Materiale riconosciuto: '+full;box.appendChild(h);
+  const p=document.createElement('p');p.className='hint';
+  p.textContent='Dalla scheda di prova'+(c[1]?': taglio '+c[0]+'% a '+c[1]+' mm/min, '+(c[2]||1)+' passate':'')+(i[2]?'; incisione dal '+i[0]+'% al '+i[1]+'% a '+i[2]+' mm/min':'')+'.';
+  box.appendChild(p);
+  const b=document.createElement('button');b.className='btn primary';b.textContent='Salva e usa questo materiale';box.appendChild(b);
+  b.onclick=()=>{
+    const m={id:'c_'+Date.now(),name:full,minP:i[0]||8,maxP:i[1]||65,speed:i[2]||2500};
+    if(c[1])m.cut={speed:c[1],passes:c[2]||1,power:c[0]||100};
+    customMats.push(m);saveMats();fillMats(m.id);
+    b.disabled=true;b.textContent='Materiale salvato e selezionato';
+  };
+  const first=$('btnCat').parentNode;first.parentNode.insertBefore(box,first);
+  box.scrollIntoView({behavior:'smooth',block:'start'});
+  return box;
+}
+window.Lb.material=showMat;
+(function(){
+  let q;try{q=new URLSearchParams(location.search);}catch(e){return;}
+  const d={m:q.get('m'),s:q.get('s'),c:q.get('c'),i:q.get('i')};
+  if(!d.m||q.get('tel'))return;
+  const box=showMat(d);
+  if(document.body.classList.contains('telmode'))return;
+  const isPhone=/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+  let pc=null;try{pc=localStorage.getItem('lb_pc');}catch(e){}
+  if(!isPhone)return;
+  const st=document.createElement('p');st.className='hint';box.appendChild(st);
+  if(!pc){st.textContent='Per mandarlo al PC: sul PC apri "Usa il telefono come camera", collega questo telefono una volta, poi scansiona di nuovo il QR.';return;}
+  st.textContent='Lo mando al PC…';
+  const sc=document.createElement('script');sc.src='telefono.js';
+  sc.onload=()=>Tel.send(pc,d).then(ok=>{st.textContent=ok?'Inviato al PC: guarda lo schermo del PC.':'Il PC non risponde. Sul PC deve essere aperto laserBrio con "Usa il telefono come camera" in attesa.';st.style.color=ok?'var(--ok)':'var(--bad)';});
+  sc.onerror=()=>{st.textContent='Serve internet sul telefono.';};
+  document.head.appendChild(sc);
+})();
 window.setMode=setMode;window.setProj=setProj;window.loadFile=loadFile;
 /* ---------- camera (si carica solo quando apri il riquadro) ---------- */
 window.__camApi={

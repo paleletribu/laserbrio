@@ -207,6 +207,7 @@ async function phone(){
     if(!window.Tel)await loadJs('telefono.js');
     st.peerH=await Tel.receive({
       onStream:adopt,
+      onData:d=>{if(window.Lb&&Lb.material)Lb.material(d);},
       onState:(s,x)=>{
         if(s==='open'){
           const link=location.origin+location.pathname+'?tel='+x;

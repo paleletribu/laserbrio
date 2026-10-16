@@ -28,6 +28,7 @@ async function receive(cb){
     call.on('close',()=>cb.onState('closed'));
     call.on('error',()=>cb.onState('closed'));
   });
+  peer.on('connection',c=>{c.on('data',d=>{if(cb.onData)cb.onData(d);try{c.send('ok');}catch(e){}});});
   peer.on('disconnected',()=>{if(!dead){try{peer.reconnect();}catch(e){}}});
   peer.on('error',e=>cb.onState('error',e&&e.type));
   return {id,stop(){dead=true;try{peer.destroy();}catch(e){}}};
@@ -41,6 +42,7 @@ async function qr(el,text){
 
 /* ---------- lato telefono: manda il video al PC ---------- */
 function phone(id){
+  try{localStorage.setItem('lb_pc',id);}catch(e){}
   const v=$('telVid'),go=$('telGo'),stopB=$('telStop'),sel=$('telCam');
   const msg=(t,bad)=>{const m=$('telMsg');m.textContent=t||'';m.style.color=bad?'var(--bad)':'var(--mute)';};
   let stream=null,peer=null,call=null,timer=0,wl=null;
@@ -110,5 +112,16 @@ function phone(id){
   msg('Premi il pulsante per mandare il video al PC.');
   cams();
 }
-window.Tel={receive,qr,phone};
+/* il telefono manda al PC il materiale letto dal QR della scheda */
+async function send(id,data){
+  await load(PEER_JS);
+  return new Promise(res=>{
+    const peer=mkPeer();let done=false;
+    const end=ok=>{if(done)return;done=true;try{peer.destroy();}catch(e){}res(ok);};
+    setTimeout(()=>end(false),12000);
+    peer.on('error',()=>end(false));
+    peer.on('open',()=>{const c=peer.connect(id,{reliable:true});c.on('open',()=>{c.send(data);});c.on('data',()=>end(true));c.on('error',()=>end(false));});
+  });
+}
+window.Tel={receive,qr,phone,send};
 })();

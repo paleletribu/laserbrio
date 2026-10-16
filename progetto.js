@@ -538,21 +538,81 @@ function inside(pt,poly){
   }
   return c;
 }
+/* ---------- ruota, specchia, ritaglia ---------- */
+function clipPoly(pts,x0,y0,x1,y1){      // Sutherland-Hodgman contro il rettangolo
+  let o=pts;
+  const edges=[[p=>p[0]>=x0,(a,b)=>{const t=(x0-a[0])/(b[0]-a[0]);return [x0,a[1]+t*(b[1]-a[1])];}],
+    [p=>p[0]<=x1,(a,b)=>{const t=(x1-a[0])/(b[0]-a[0]);return [x1,a[1]+t*(b[1]-a[1])];}],
+    [p=>p[1]>=y0,(a,b)=>{const t=(y0-a[1])/(b[1]-a[1]);return [a[0]+t*(b[0]-a[0]),y0];}],
+    [p=>p[1]<=y1,(a,b)=>{const t=(y1-a[1])/(b[1]-a[1]);return [a[0]+t*(b[0]-a[0]),y1];}]];
+  for(const [inn,cut] of edges){
+    const inp=o;o=[];if(!inp.length)break;
+    for(let i=0;i<inp.length;i++){
+      const a=inp[i],b=inp[(i+1)%inp.length],ia=inn(a),ib=inn(b);
+      if(ia){o.push(a);if(!ib)o.push(cut(a,b));}else if(ib){o.push(cut(a,b));}
+    }
+  }
+  return o;
+}
+function clipLine(pts,x0,y0,x1,y1){      // tratto aperto: restano i pezzi dentro il rettangolo
+  const out=[];let cur=null;
+  for(let i=1;i<pts.length;i++){
+    let a=pts[i-1],b=pts[i],t0=0,t1=1;const dx=b[0]-a[0],dy=b[1]-a[1];
+    let ok=true;
+    for(const [p,q] of [[-dx,a[0]-x0],[dx,x1-a[0]],[-dy,a[1]-y0],[dy,y1-a[1]]]){
+      if(p===0){if(q<0){ok=false;break;}}
+      else{const r=q/p;if(p<0){if(r>t1){ok=false;break;}if(r>t0)t0=r;}else{if(r<t0){ok=false;break;}if(r<t1)t1=r;}}
+    }
+    if(!ok){cur=null;continue;}
+    const A=[a[0]+t0*dx,a[1]+t0*dy],B=[a[0]+t1*dx,a[1]+t1*dy];
+    if(cur&&t0===0)cur.push(B);else{cur=[A,B];out.push(cur);}
+    if(t1<1)cur=null;
+  }
+  return out;
+}
+const val=(id,d)=>{const e=$(id);if(!e)return d;const v=Number(e.value);return isFinite(v)?v:d;};
+function transformSubs(list){
+  const rot=((P.rot||0)%360+360)%360,flip=!!P.flip;
+  if(!rot&&!flip)return list;
+  let all=[];for(const s of list)for(const p of s.pts)all.push(p);
+  const b=bboxOf(all),cx=(b.minx+b.maxx)/2,cy=(b.miny+b.maxy)/2,r=rot*Math.PI/180,c=Math.cos(r),sn=Math.sin(r);
+  return list.map(s=>({key:s.key,closed:s.closed,pts:s.pts.map(q=>{
+    let x=q[0]-cx,y=q[1]-cy;if(flip)x=-x;
+    return [cx+x*c-y*sn,cy+x*sn+y*c];})}));
+}
 function build(area){
   if(!P.svg)return {error:P.err||'Scegli uno zip o un file SVG con il pulsante qui sopra.'};
   const sc=(Number($('impScale').value)||100)/100,strip=$('impOut').checked;
-  const keys=P.sel,list=[];
+  const keys=P.sel;let list=[];
   for(const s of P.svg.subs){
     if(!keys.has(s.key))continue;
     if(strip){const b=bboxOf(s.pts);if(b.maxx<0||b.maxy<0||b.minx>P.svg.sheetW||b.miny>P.svg.sheetH)continue;}
     list.push(s);
   }
   if(!list.length)return {error:'Nessun tratto selezionato: accendi almeno un colore nell\'elenco qui sopra.'};
+  list=transformSubs(list);
   let all=[];for(const s of list)for(const p of s.pts)all.push(p);
   const bb=bboxOf(all),m=3,gap=4;
+  P.baseW=bb.maxx-bb.minx;P.baseH=bb.maxy-bb.miny;
   if(!((bb.maxx-bb.minx)>0&&(bb.maxy-bb.miny)>0))return {error:'Il disegno non ha dimensioni.'};
   // tutti i tratti, con Y girata (nel file la Y va verso il basso) e scala applicata
-  const paths=list.map(s=>({pts:s.pts.map(q=>[(q[0]-bb.minx)*sc,(bb.maxy-q[1])*sc]),closed:s.closed}));
+  let paths=list.map(s=>({pts:s.pts.map(q=>[(q[0]-bb.minx)*sc,(bb.maxy-q[1])*sc]),closed:s.closed}));
+  P.preW=P.baseW*sc;P.preH=P.baseH*sc;
+  let cropped=false;
+  if($('impCrop')&&$('impCrop').checked){
+    const x0=val('impCx',0),y0=val('impCy',0),x1=x0+val('impCw',P.preW),y1=y0+val('impCh',P.preH);
+    if(!(x1>x0&&y1>y0))return {error:'Il ritaglio non ha dimensioni: controlla larghezza e altezza.'};
+    const np=[];
+    for(const p of paths){
+      if(p.closed){const q=clipPoly(p.pts,x0,y0,x1,y1);if(q.length>=3)np.push({pts:q,closed:true});}
+      else for(const q of clipLine(p.pts,x0,y0,x1,y1))if(q.length>=2)np.push({pts:q,closed:false});
+    }
+    if(!np.length)return {error:'Dentro il ritaglio non c\'è nessun tratto. Sposta o allarga il rettangolo.'};
+    let a2=[];for(const p of np)for(const q of p.pts)a2.push(q);
+    const cb=bboxOf(a2);
+    for(const p of np)p.pts=p.pts.map(q=>[q[0]-cb.minx,q[1]-cb.miny]);
+    paths=np;cropped=true;bb.minx=0;bb.maxx=(cb.maxx-cb.minx)/sc;bb.miny=0;bb.maxy=(cb.maxy-cb.miny)/sc;
+  }
   for(const p of paths){p.b=bboxOf(p.pts);p.a=p.closed?Math.abs(area2(p.pts)):0;}
   const closed=paths.filter(p=>p.closed).sort((x,y)=>y.a-x.a);
   // fori = tratti chiusi dentro un altro tratto chiuso (profondità dispari); owner = il contorno più piccolo che lo contiene
@@ -597,7 +657,8 @@ function build(area){
     ps.sort((a,b)=>(a.open?2:a.hole?1:0)-(b.open?2:b.hole?1:0));
     return {name,tag:'file',x:ox,y:oy,w:q.pw,h:q.ph,paths:ps};
   };
-  if(wholeW<=W&&wholeH<=H){
+  const copies=Math.max(1,Math.min(50,Math.round(val('impCopies',1))));
+  if(copies===1&&wholeW<=W&&wholeH<=H){
     // tutto sta in un foglio: lo lascio com'è nel file
     const its=pieces.map((q,i)=>place(q,q.box.minx+m,q.box.miny+m,(P.name||'progetto')+(pieces.length>1?' · pezzo '+(i+1):'')));
     sheets.push(mk(its));
@@ -605,7 +666,8 @@ function build(area){
     // non sta: divido in pezzi e li dispongo su più fogli (file di legno) grandi come l'area di lavoro
     const big=pieces.find(q=>q.pw>W||q.ph>H);
     if(big)return {error:'Un pezzo del progetto misura '+Math.round(big.pw)+' × '+Math.round(big.ph)+' mm e non sta nell\'area di lavoro ('+Math.round(area.w)+' × '+Math.round(area.h)+' mm). Riduci la scala, oppure spegni i colori che sono cornici o fogli.'};
-    const ord=pieces.slice().sort((x,y)=>y.ph-x.ph||y.pw-x.pw);
+    const ord0=pieces.slice().sort((x,y)=>y.ph-x.ph||y.pw-x.pw),ord=[];
+    for(const q of ord0)for(let k=0;k<copies;k++)ord.push(q);
     let its=[],x=0,y=0,rowH=0,n=0;
     for(const q of ord){
       if(x>0&&x+q.pw>W){x=0;y+=rowH+gap;rowH=0;}
@@ -616,7 +678,8 @@ function build(area){
     if(its.length)sheets.push(mk(its));
   }
   const nh=paths.filter(p=>p.hole).length;
-  return {sheets,hardware:[],steps:[],imported:{n:paths.length,holes:nh,w:wholeW,h:wholeH,pieces:pieces.length}};
+  setTimeout(syncDims,0);
+  return {sheets,hardware:[],steps:[],imported:{n:paths.length,holes:nh,w:wholeW,h:wholeH,pieces:pieces.length*copies}};
 }
 
 /* ---------- interfaccia ---------- */
@@ -646,7 +709,7 @@ async function useSvgText(text,name,bytes){
     }else P.svg=/\.dxf$/i.test(name)?parseDxf(text):parseSvg(text);
     P.name=name.replace(/\.(svg|dxf|ai|eps)$/i,'').replace(/^.*[\\/]/,'');
     if(!P.svg.subs.length)throw new Error('In questo file non ci sono linee da tagliare.');
-    P.err='';fillLayers();
+    P.err='';resetEdit();fillLayers();
     const b=P.svg;msg('Caricato: '+P.name+'. Foglio del file '+Math.round(b.sheetW)+' × '+Math.round(b.sheetH)+' mm, '+b.subs.length+' tratti.');
   }catch(e){P.svg=null;P.err=e.message;msg(e.message,true);}
   redraw();
@@ -705,7 +768,51 @@ async function pick(i){
     await useSvgText(/\.(ai|eps)$/i.test(e.name)?'':new TextDecoder('utf-8').decode(b),e.name,b);
   }catch(err){msg(err.message||'Non riesco ad aprire il file.',true);}
 }
+/* ---------- duplica, ruota, ridimensiona, ritaglia: comandi ---------- */
+function syncDims(){
+  const w=$('impW'),h=$('impH');if(!w||!h||!P.baseW)return;
+  const sc=(Number($('impScale').value)||100)/100;
+  if(document.activeElement!==w)w.value=Math.round(P.baseW*sc*10)/10;
+  if(document.activeElement!==h)h.value=Math.round(P.baseH*sc*10)/10;
+}
+function resetEdit(){
+  P.rot=0;P.flip=false;
+  for(const [id,v] of [['impCopies','1'],['impRot','0'],['impScale','100']]){const e=$(id);if(e)e.value=v;}
+  const c=$('impCrop');if(c){c.checked=false;$('impCropBox').hidden=true;}
+}
+function buildEditUi(){
+  if($('impEdit'))return;
+  const anchor=$('impScale').closest('.grid2');if(!anchor)return;
+  const d=document.createElement('div');d.id='impEdit';d.style.marginTop='10px';
+  d.innerHTML='<p style="margin:12px 0 4px"><b>Modifica il progetto</b></p>'
+   +'<div class="grid2"><div><label for="impW">Larghezza (mm)</label><input type="number" id="impW" min="1" step="0.1"></div>'
+   +'<div><label for="impH">Altezza (mm)</label><input type="number" id="impH" min="1" step="0.1"></div></div>'
+   +'<p class="hint" style="margin-top:4px">Cambia una misura e l\'altra si adatta (le proporzioni restano uguali).</p>'
+   +'<div class="row" style="margin-top:8px"><button class="btn" id="impRL">↺ 90°</button><button class="btn" id="impRR">↻ 90°</button><button class="btn" id="impFl">⇋ Specchia</button>'
+   +'<label style="margin:0 0 0 6px">Angolo</label><input type="number" id="impRot" value="0" step="1" style="width:80px"> °</div>'
+   +'<div class="grid2" style="margin-top:10px"><div><label for="impCopies">Quante copie</label><input type="number" id="impCopies" value="1" min="1" max="50" step="1"></div>'
+   +'<div style="display:flex;align-items:flex-end"><label class="chk"><input type="checkbox" id="impCrop"> Ritaglia una parte</label></div></div>'
+   +'<div id="impCropBox" hidden><p class="hint" style="margin-top:6px">Tieni solo il rettangolo qui sotto (misure in mm, dall\'angolo in basso a sinistra del disegno). I tratti che escono vengono tagliati sul bordo del rettangolo.</p>'
+   +'<div class="grid2"><div><label for="impCx">Da sinistra</label><input type="number" id="impCx" value="0" step="0.5"></div><div><label for="impCy">Dal basso</label><input type="number" id="impCy" value="0" step="0.5"></div>'
+   +'<div><label for="impCw">Larghezza</label><input type="number" id="impCw" value="0" step="0.5"></div><div><label for="impCh">Altezza</label><input type="number" id="impCh" value="0" step="0.5"></div></div></div>';
+  anchor.parentNode.insertBefore(d,anchor.nextSibling);
+  const setScale=v=>{$('impScale').value=Math.max(5,Math.min(2000,Math.round(v*100)/100));redraw();};
+  $('impW').oninput=()=>{const w=Number($('impW').value);if(w>0&&P.baseW){setScale(w/P.baseW*100);const h=$('impH');h.value=Math.round(P.baseH*w/P.baseW*10)/10;}};
+  $('impH').oninput=()=>{const h=Number($('impH').value);if(h>0&&P.baseH){setScale(h/P.baseH*100);const w=$('impW');w.value=Math.round(P.baseW*h/P.baseH*10)/10;}};
+  const rot=a=>{P.rot=(((P.rot||0)+a)%360+360)%360;$('impRot').value=P.rot;redraw();};
+  $('impRL').onclick=()=>rot(-90);$('impRR').onclick=()=>rot(90);
+  $('impFl').onclick=()=>{P.flip=!P.flip;redraw();};
+  $('impRot').oninput=()=>{P.rot=Number($('impRot').value)||0;redraw();};
+  $('impCopies').oninput=redraw;
+  $('impCrop').onchange=()=>{
+    $('impCropBox').hidden=!$('impCrop').checked;
+    if($('impCrop').checked){$('impCx').value=0;$('impCy').value=0;$('impCw').value=Math.round((P.preW||P.baseW||0)*10)/10;$('impCh').value=Math.round((P.preH||P.baseH||0)*10)/10;}
+    redraw();
+  };
+  for(const id of ['impCx','impCy','impCw','impCh'])$(id).oninput=redraw;
+}
 function init(){
+  buildEditUi();
   const openAny=async f=>{
     if(/\.zip$/i.test(f.name)||f.type==='application/zip')await openZip(f,f.name,false);
     else{P.stack=[];P.cur=null;$('impList').innerHTML='';$('impCount').textContent='';$('impPhoto').hidden=true;if(/\.(ai|eps)$/i.test(f.name))await useSvgText('',f.name,new Uint8Array(await f.arrayBuffer()));else await useSvgText(await f.text(),f.name);}
@@ -722,7 +829,7 @@ function init(){
     if(v!=='')await pick(Number(v));
   };
   $('impFilter').oninput=showList;
-  $('impScale').oninput=redraw;$('impOut').onchange=redraw;
+  $('impScale').oninput=()=>{redraw();};$('impOut').onchange=redraw;
   $('impDrop').onclick=()=>$('impFile').click();
 }
 window.Proj={plan:build,init,_t:{parseSvg,parseDxf,parseEps,parseAi,readZip,unzipEntry,parseD,flatten}};

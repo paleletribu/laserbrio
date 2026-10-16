@@ -225,6 +225,161 @@ function parseSvg(text){
   return {subs,layers,sheetW,sheetH};
 }
 
+function parseDxf(text){
+  const L=text.split(/\r?\n/);
+  const pr=[];
+  for(let i=0;i+1<L.length;i+=2)pr.push([parseInt(L[i],10),L[i+1].trim()]);
+  let unit=1,i0=0,i1=pr.length;
+  for(let i=0;i<pr.length-1;i++){
+    if(pr[i][0]===9&&pr[i][1]==='$INSUNITS'){const v=Number(pr[i+1][1]);unit={1:25.4,2:304.8,4:1,5:10,6:1000,8:0.0254e-3*1000/25.4,9:0.0254,10:914.4}[v]||1;}
+    if(pr[i][0]===2&&pr[i][1]==='ENTITIES'&&pr[i-1]&&pr[i-1][1]==='SECTION'){i0=i+1;}
+  }
+  const ents=[];let cur=null;
+  for(let i=i0;i<i1;i++){
+    const [c,v]=pr[i];
+    if(c===0){
+      if(v==='ENDSEC'&&cur){ents.push(cur);cur=null;break;}
+      if(cur)ents.push(cur);
+      cur={t:v,g:[]};
+    }else if(cur)cur.g.push([c,v]);
+  }
+  if(cur)ents.push(cur);
+  const subs=[];
+  const num=v=>Number(v);
+  const lay=e=>{const l=e.g.find(x=>x[0]===8);return l?l[1]:'0';};
+  const add=(pts,closed,key)=>{
+    if(pts.length<2)return;
+    if(!closed&&pts.length>2&&Math.hypot(pts[0][0]-pts[pts.length-1][0],pts[0][1]-pts[pts.length-1][1])<0.02)closed=true;
+    if(closed&&pts.length>2&&Math.hypot(pts[0][0]-pts[pts.length-1][0],pts[0][1]-pts[pts.length-1][1])<0.02)pts.pop();
+    if(closed&&pts.length<3)return;
+    subs.push({pts:pts.map(p=>[p[0]*unit,p[1]*unit]),closed,key});
+  };
+  const arcPts=(cx,cy,r,a0,a1)=>{
+    while(a1<=a0)a1+=360;
+    const n=Math.max(6,Math.ceil((a1-a0)/6)),out=[];
+    for(let k=0;k<=n;k++){const a=(a0+(a1-a0)*k/n)*Math.PI/180;out.push([cx+r*Math.cos(a),cy+r*Math.sin(a)]);}
+    return out;
+  };
+  const bulgeSeg=(p,q,b)=>{
+    const out=[],d=Math.hypot(q[0]-p[0],q[1]-p[1]);if(!b||d<1e-9)return out;
+    const th=4*Math.atan(b),r=d/2/Math.sin(th/2),mx=(p[0]+q[0])/2,my=(p[1]+q[1])/2;
+    const h=r*Math.cos(th/2),nx=-(q[1]-p[1])/d,ny=(q[0]-p[0])/d,cx=mx+nx*h,cy=my+ny*h;
+    const a0=Math.atan2(p[1]-cy,p[0]-cx),n=Math.max(2,Math.ceil(Math.abs(th)/0.1));
+    for(let k=1;k<n;k++){const a=a0+th*k/n;out.push([cx+Math.abs(r)*Math.cos(a)*Math.sign(r),cy+Math.abs(r)*Math.sin(a)*Math.sign(r)]);}
+    return out;
+  };
+  function nurbs(deg,knots,cp,w){
+    const n=cp.length,pts=[];
+    const t0=knots[deg],t1=knots[n];
+    const spans=Math.max(1,n-deg),steps=Math.min(400,spans*8);
+    const basis=(t)=>{
+      let k=deg;while(k<n-1&&t>=knots[k+1])k++;
+      const N=new Array(deg+1).fill(0);N[0]=1;const left=[],right=[];
+      for(let j=1;j<=deg;j++){left[j]=t-knots[k+1-j];right[j]=knots[k+j]-t;let sv=0;for(let r=0;r<j;r++){const den=right[r+1]+left[j-r],tmp=den?N[r]/den:0;N[r]=sv+right[r+1]*tmp;sv=left[j-r]*tmp;}N[j]=sv;}
+      return [k,N];
+    };
+    for(let s=0;s<=steps;s++){
+      let t=t0+(t1-t0)*s/steps;if(s===steps)t=t1-1e-9*(t1-t0);
+      const [k,N]=basis(t);let x=0,y=0,ww=0;
+      for(let j=0;j<=deg;j++){const idx=k-deg+j;if(idx<0||idx>=n)continue;const b=N[j]*(w?w[idx]:1);x+=b*cp[idx][0];y+=b*cp[idx][1];ww+=b;}
+      if(ww)pts.push([x/ww,y/ww]);
+    }
+    return pts;
+  }
+  for(let ei=0;ei<ents.length;ei++){
+    const e=ents[ei],g=e.g,key=lay(e);
+    if(e.t==='LINE'){
+      const f=c=>{const x=g.find(a=>a[0]===c);return x?num(x[1]):0;};
+      add([[f(10),f(20)],[f(11),f(21)]],false,key);
+    }else if(e.t==='CIRCLE'){
+      const f=c=>{const x=g.find(a=>a[0]===c);return x?num(x[1]):0;};
+      const p=arcPts(f(10),f(20),f(40),0,360);p.pop();add(p,true,key);
+    }else if(e.t==='ARC'){
+      const f=c=>{const x=g.find(a=>a[0]===c);return x?num(x[1]):0;};
+      add(arcPts(f(10),f(20),f(40),f(50),f(51)),false,key);
+    }else if(e.t==='LWPOLYLINE'){
+      const vs=[];let closed=false;
+      for(const [c,v] of g){
+        if(c===70)closed=(parseInt(v,10)&1)===1;
+        else if(c===10)vs.push({x:num(v),y:0,b:0});
+        else if(c===20&&vs.length)vs[vs.length-1].y=num(v);
+        else if(c===42&&vs.length)vs[vs.length-1].b=num(v);
+      }
+      const pts=[];
+      for(let k=0;k<vs.length;k++){
+        pts.push([vs[k].x,vs[k].y]);
+        if(vs[k].b){const q=vs[(k+1)%vs.length];if(k+1<vs.length||closed)pts.push(...bulgeSeg([vs[k].x,vs[k].y],[q.x,q.y],vs[k].b));}
+      }
+      add(pts,closed,key);
+    }else if(e.t==='POLYLINE'){
+      const closed=g.some(a=>a[0]===70&&(parseInt(a[1],10)&1)===1);
+      const pts=[];let j=ei+1;
+      for(;j<ents.length&&ents[j].t!=='SEQEND';j++){
+        if(ents[j].t==='VERTEX'){const x=ents[j].g.find(a=>a[0]===10),y=ents[j].g.find(a=>a[0]===20);if(x&&y)pts.push([num(x[1]),num(y[1])]);}
+      }
+      ei=j;add(pts,closed,key);
+    }else if(e.t==='SPLINE'){
+      let flags=0,deg=3;const knots=[],cp=[],w=[],fit=[];
+      for(const [c,v] of g){
+        if(c===70)flags=parseInt(v,10);else if(c===71)deg=parseInt(v,10);
+        else if(c===40)knots.push(num(v));
+        else if(c===41)w.push(num(v));
+        else if(c===10)cp.push([num(v),0]);
+        else if(c===20&&cp.length)cp[cp.length-1][1]=num(v);
+        else if(c===11)fit.push([num(v),0]);
+        else if(c===21&&fit.length)fit[fit.length-1][1]=num(v);
+      }
+      let pts;
+      if(cp.length>deg&&knots.length>=cp.length+deg+1)pts=nurbs(deg,knots,cp,w.length===cp.length?w:null);
+      else pts=fit.length?fit:cp;
+      add(pts,(flags&1)===1,key);
+    }
+  }
+  // unisce i tratti aperti che si toccano per formare contorni chiusi
+  (function(){
+    const T=0.05,K=p=>Math.round(p[0]/T)+','+Math.round(p[1]/T);
+    const open=subs.filter(s=>!s.closed),keep=subs.filter(s=>s.closed);
+    if(open.length<2)return;
+    const map=new Map(),used=new Set();
+    const put=(p,i)=>{const k=K(p);let a=map.get(k);if(!a)map.set(k,a=[]);a.push(i);};
+    const near=(p)=>{const r=[],x=Math.round(p[0]/T),y=Math.round(p[1]/T);for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){const a=map.get((x+dx)+','+(y+dy));if(a)r.push(...a);}return r;};
+    open.forEach((s,i)=>{put(s.pts[0],i);put(s.pts[s.pts.length-1],i);});
+    const out=[];
+    for(let i=0;i<open.length;i++){
+      if(used.has(i))continue;used.add(i);
+      let pts=open[i].pts.slice(),key=open[i].key,guard=0;
+      for(let dir=0;dir<2;dir++){
+        let go=true;
+        while(go&&guard++<100000){
+          go=false;const end=pts[pts.length-1];
+          for(const j of near(end)){
+            if(used.has(j))continue;
+            const q=open[j].pts;
+            if(Math.hypot(q[0][0]-end[0],q[0][1]-end[1])<T*1.5){used.add(j);pts=pts.concat(q.slice(1));go=true;break;}
+            if(Math.hypot(q[q.length-1][0]-end[0],q[q.length-1][1]-end[1])<T*1.5){used.add(j);pts=pts.concat(q.slice(0,-1).reverse());go=true;break;}
+          }
+        }
+        pts.reverse();
+      }
+      out.push({pts,key});
+    }
+    subs.length=0;subs.push(...keep);
+    for(const o of out){
+      let p=o.pts,closed=false;
+      if(p.length>2&&Math.hypot(p[0][0]-p[p.length-1][0],p[0][1]-p[p.length-1][1])<T*1.5){closed=true;p=p.slice(0,-1);}
+      if(closed&&p.length<3)continue;
+      subs.push({pts:p,closed,key:o.key});
+    }
+  })();
+  if(!subs.length)throw new Error('In questo DXF non ci sono linee da tagliare.');
+  let a=1e18,b=1e18,c=-1e18,d=-1e18;
+  for(const s of subs)for(const p of s.pts){if(p[0]<a)a=p[0];if(p[0]>c)c=p[0];if(p[1]<b)b=p[1];if(p[1]>d)d=p[1];}
+  for(const s of subs)s.pts=s.pts.map(p=>[p[0]-a,d-p[1]]);
+  const layers={};
+  for(const s of subs){let l=layers[s.key];if(!l)l=layers[s.key]={key:s.key,n:0,len:0};l.n++;for(let i=1;i<s.pts.length;i++)l.len+=Math.hypot(s.pts[i][0]-s.pts[i-1][0],s.pts[i][1]-s.pts[i-1][1]);}
+  return {subs,layers,sheetW:c-a,sheetH:d-b};
+}
+
 /* ---------- dai tratti al piano di taglio ---------- */
 function bboxOf(pts){let a=1e18,b=1e18,c=-1e18,d=-1e18;for(const p of pts){if(p[0]<a)a=p[0];if(p[0]>c)c=p[0];if(p[1]<b)b=p[1];if(p[1]>d)d=p[1];}return {minx:a,miny:b,maxx:c,maxy:d};}
 function area2(pts){let s=0;for(let i=0,n=pts.length;i<n;i++){const a=pts[i],b=pts[(i+1)%n];s+=a[0]*b[1]-b[0]*a[1];}return s/2;}
@@ -300,8 +455,8 @@ function fillLayers(){
 async function useSvgText(text,name){
   P.svg=null;
   try{
-    P.svg=parseSvg(text);P.name=name.replace(/\.svg$/i,'').replace(/^.*[\\/]/,'');
-    if(!P.svg.subs.length)throw new Error('In questo SVG non ci sono linee da tagliare.');
+    P.svg=/\.dxf$/i.test(name)?parseDxf(text):parseSvg(text);P.name=name.replace(/\.(svg|dxf)$/i,'').replace(/^.*[\\/]/,'');
+    if(!P.svg.subs.length)throw new Error('In questo file non ci sono linee da tagliare.');
     P.err='';fillLayers();
     const b=P.svg;msg('Caricato: '+P.name+'. Foglio del file '+Math.round(b.sheetW)+' × '+Math.round(b.sheetH)+' mm, '+b.subs.length+' tratti.');
   }catch(e){P.svg=null;P.err=e.message;msg(e.message,true);}
@@ -314,13 +469,13 @@ function showList(){
   if(P.stack.length>1){const o=document.createElement('option');o.value='..';o.textContent='⬆ Torna indietro';sel.appendChild(o);}
   for(let i=0;i<cur.entries.length;i++){
     const e=cur.entries[i],n=e.name.toLowerCase();
-    if(!(n.endsWith('.svg')||n.endsWith('.zip')))continue;
+    if(!(n.endsWith('.svg')||n.endsWith('.dxf')||n.endsWith('.zip')))continue;
     total++;
     if(q&&!n.includes(q))continue;
     if(shown>=300)continue;shown++;
     const o=document.createElement('option');o.value=String(i);o.textContent=(n.endsWith('.zip')?'📦 ':'')+e.name+(e.us>1048576?' ('+(e.us/1048576).toFixed(0)+' MB)':'');sel.appendChild(o);
   }
-  $('impCount').textContent=total?(shown+' di '+total+(shown<total?' (scrivi nel filtro per restringere)':'')):'Nessun file SVG o zip qui dentro.';
+  $('impCount').textContent=total?(shown+' di '+total+(shown<total?' (scrivi nel filtro per restringere)':'')):'Nessun file SVG, DXF o zip qui dentro.';
   // preferisci subito la prima foto
 }
 async function loadPhoto(){
@@ -339,9 +494,14 @@ async function openZip(blob,label,push){
     if(push)P.stack.push(f);else P.stack=[f];
     P.cur=f;$('impFilter').value='';showList();loadPhoto();
     const svgs=entries.filter(e=>/\.svg$/i.test(e.name));
-    msg(entries.length+' file nello zip, '+svgs.length+' SVG.'+(svgs.length===1?'':' Scegli quello che vuoi dall\'elenco.'));
-    if(svgs.length===1){await pick(entries.indexOf(svgs[0]));}
-    else if(!svgs.length&&!entries.some(e=>/\.zip$/i.test(e.name)))msg('Questo zip non contiene SVG (solo '+[...new Set(entries.map(e=>e.name.split('.').pop().toLowerCase()))].slice(0,6).join(', ')+'). Per ora laserBrio legge gli SVG.',true);
+    const dxfs=entries.filter(e=>/\.dxf$/i.test(e.name));
+    const cand=svgs.length?svgs:dxfs;
+    if(cand.length){
+      const pref=cand.find(e=>/3\s?mm/i.test(e.name))||cand[0];
+      msg(entries.length+' file nello zip, '+cand.length+(svgs.length?' SVG':' DXF')+'.'+(cand.length===1?'':' Ho aperto '+pref.name.split('/').pop()+': se serve un altro spessore sceglilo dall\'elenco.'));
+      await pick(entries.indexOf(pref));return;
+    }
+    if(!entries.some(e=>/\.zip$/i.test(e.name)))msg('Questo zip non contiene SVG (solo '+[...new Set(entries.map(e=>e.name.split('.').pop().toLowerCase()))].slice(0,6).join(', ')+'). Per ora laserBrio legge SVG e DXF.',true);
   }catch(e){msg(e.message||'Non riesco a leggere lo zip.',true);}
 }
 async function pick(i){

@@ -180,14 +180,15 @@ async function detail(i){
   if(why)line(b,'div',why,'hint');
   line(b,'div','Codice '+id+' · formati: '+fm.join(', '),'hint');
   const r=document.createElement('div');r.className='row';r.style.marginTop='12px';b.appendChild(r);
-  const zip=/\.zip$/i.test(path),can=zip||fm.includes('svg');
+  const zip=/\.zip$/i.test(path),can=zip||fm.includes('svg')||fm.includes('dxf');
   const go=document.createElement('button');go.className='btn primary big';go.textContent=zip?'Apri e taglia':'Apri nel taglio';go.disabled=!can;
   go.onclick=async()=>{
     try{
       let f;
       if(zip)f=await fileAt(path);
       else{
-        const d=await dirAt(path.split('/')),it2=[];for await(const e of d.values())if(/\.svg$/i.test(e.name))it2.push(e);
+        const d=await dirAt(path.split('/')),it2=[];for await(const e of d.values())if(/\.(svg|dxf)$/i.test(e.name))it2.push(e);
+        it2.sort((a,b)=>(/\.svg$/i.test(b.name)?1:0)-(/\.svg$/i.test(a.name)?1:0));
         f=await it2[0].getFile();
       }
       $('catDet').remove();$('catOv').hidden=true;document.body.style.overflow='';
@@ -199,8 +200,8 @@ async function detail(i){
   };
   r.appendChild(go);
   const x=document.createElement('button');x.className='btn';x.textContent='Chiudi';x.onclick=()=>$('catDet').remove();r.appendChild(x);
-  if(!can)line(b,'p','Questo progetto è in formato '+fm.filter(f=>f!=='jpg'&&f!=='png').join('/').toUpperCase()+': laserBrio non lo sa ancora aprire (legge solo SVG e zip con SVG).','hint');
-  else if(zip)line(b,'p','Se lo zip non contiene SVG, laserBrio te lo dirà.','hint');
+  if(!can)line(b,'p','Questo progetto è in formato '+fm.filter(f=>f!=='jpg'&&f!=='png').join('/').toUpperCase()+': laserBrio non lo sa ancora aprire (legge SVG e DXF).','hint');
+  else if(zip)line(b,'p','Se lo zip contiene più spessori (3, 4, 6 mm) apro il 3 mm: gli altri sono nell\'elenco.','hint');
 }
 function detailRaw(r){
   const b=sheet();

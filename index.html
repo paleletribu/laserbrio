@@ -368,7 +368,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer>CxAdGeM_Fp · Mk 24</footer>
+<footer>CxAdGeM_Fp · Mk 25</footer>
 </main>
 
 <script>
@@ -1259,6 +1259,33 @@ $('btnSaveMat').onclick=()=>{
   $('matName').value='';say('Materiale "'+name+'" salvato.','ok');
 };
 
+/* comandi sempre visibili mentre la camera è aperta */
+(function(){
+  const st=document.createElement('style');
+  st.textContent='#miniPad{position:fixed;right:10px;bottom:10px;z-index:40;background:var(--card);border:2px solid var(--accent);border-radius:14px;padding:8px;box-shadow:0 4px 18px rgba(0,0,0,.25);max-width:230px}'
+   +'#miniPad[hidden]{display:none}#miniPad .mg{display:grid;grid-template-columns:repeat(3,48px);grid-auto-rows:44px;gap:5px;justify-content:center}'
+   +'#miniPad .btn{padding:0;min-height:0;font-size:16px}#miniPad .mr{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;align-items:center;justify-content:center}'
+   +'#miniPad .mr .btn{padding:6px 8px;font-size:14px}#miniPad select{width:auto;padding:4px;font-size:14px}#miniPad .mt{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--mute);margin-bottom:4px}';
+  document.head.appendChild(st);
+  const d=document.createElement('div');d.id='miniPad';d.hidden=true;
+  d.innerHTML='<div class="mt"><span id="mpPos">X — · Y —</span><button class="btn" id="mpMin" style="padding:2px 8px;min-height:0;font-size:13px">riduci</button></div>'
+   +'<div id="mpBody"><div class="mg"><span></span><button class="btn" data-m="btnJU">▲</button><span></span><button class="btn" data-m="btnJL">◀</button><span></span><button class="btn" data-m="btnJR">▶</button><span></span><button class="btn" data-m="btnJD">▼</button><span></span></div>'
+   +'<div class="mr"><select id="mpStep"><option value="1">1 mm</option><option value="5">5 mm</option><option value="10" selected>10 mm</option><option value="50">50 mm</option></select><button class="btn primary" data-m="btnOrigin">Origine qui</button></div>'
+   +'<div class="mr"><button class="btn" data-m="btnFrame">Cornice</button><button class="btn" data-m="btnPause">Pausa</button><button class="btn danger" data-m="btnStop">STOP</button></div></div>';
+  document.body.appendChild(d);
+  const J={btnJU:'0,1',btnJD:'0,-1',btnJL:'-1,0',btnJR:'1,0'};
+  const orig=k=>J[k]?document.querySelector('[data-j="'+J[k]+'"]'):$(k);
+  d.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{const o=orig(b.dataset.m);if(o&&!o.disabled)o.click();});
+  $('mpStep').onchange=()=>{$('stepSel').value=$('mpStep').value;};
+  $('stepSel').addEventListener('change',()=>{$('mpStep').value=$('stepSel').value;});
+  $('mpMin').onclick=()=>{const b=$('mpBody'),h=b.hidden=!b.hidden;$('mpMin').textContent=h?'apri':'riduci';};
+  setInterval(()=>{
+    const stg=$('camStage'),on=stg&&!stg.hidden&&!document.body.classList.contains('telmode');
+    d.hidden=!on;if(!on)return;
+    $('mpPos').textContent=$('posLabel').textContent;
+    d.querySelectorAll('[data-m]').forEach(b=>{const o=orig(b.dataset.m);b.disabled=!o||o.disabled;b.style.display=(o&&o.hidden&&(b.dataset.m==='btnPause'||b.dataset.m==='btnStop'))?'none':'';});
+  },400);
+})();
 fillMats('ply');
 let m0='incidi';try{m0=localStorage.getItem('ls_mode')||'incidi';}catch(e){}
 setMode(m0==='taglia'?'taglia':'incidi');

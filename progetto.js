@@ -725,5 +725,5 @@ function init(){
   $('impScale').oninput=redraw;$('impOut').onchange=redraw;
   $('impDrop').onclick=()=>$('impFile').click();
 }
-window.Proj={plan:build,init,_t:{parseSvg,readZip,unzipEntry,parseD,flatten}};
+window.Proj={plan:build,init,_t:{parseSvg,parseDxf,parseEps,parseAi,readZip,unzipEntry,parseD,flatten}};
 })();

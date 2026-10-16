@@ -42,10 +42,84 @@ function zipPhoto(rel){
       const imgs=ents.filter(e=>/\.(jpe?g|png)$/i.test(e.name)&&e.us<40e6);
       const e=imgs.find(x=>/photo/i.test(x.name))||imgs[0];
       if(e){const b=await T.unzipEntry(f,e);u=URL.createObjectURL(new Blob([b],{type:/png$/i.test(e.name)?'image/png':'image/jpeg'}));}
+      else u=await vecZip(f,ents);
     }catch(_){}
     return u;
   });
   zq=p.catch(()=>{});zc.set(rel,p);return p;
+}
+
+/* anteprima disegnata dal file vettoriale stesso (SVG, DXF, EPS, AI) */
+let vq=Promise.resolve();
+async function projReady(){
+  if(!window.Proj){
+    await new Promise((ok,ko)=>{const sc=document.createElement('script');sc.src='progetto.js';sc.onload=ok;sc.onerror=ko;document.head.appendChild(sc);});
+  }
+  if(!window.__projInit){window.__projInit=true;Proj.init();}
+}
+const vrank=n=>/\.svg$/i.test(n)?4:/\.eps$/i.test(n)?3:/\.dxf$/i.test(n)?2:/\.ai$/i.test(n)?1:0;
+function vdraw(r){
+  const W=240,m=12,cv=document.createElement('canvas');cv.width=cv.height=W;
+  const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,W,W);
+  const k=Math.min((W-2*m)/Math.max(r.sheetW,1e-6),(W-2*m)/Math.max(r.sheetH,1e-6));
+  const ox=(W-r.sheetW*k)/2,oy=(W-r.sheetH*k)/2;
+  let tot=0;for(const s of r.subs)tot+=s.pts.length;
+  const step=Math.max(1,Math.ceil(tot/40000));
+  x.strokeStyle='#2b2b2b';x.lineWidth=1;x.lineJoin='round';x.beginPath();
+  for(const s of r.subs){
+    const q=s.pts;if(q.length<2)continue;
+    x.moveTo(ox+q[0][0]*k,oy+q[0][1]*k);
+    for(let i=step;i<q.length;i+=step)x.lineTo(ox+q[i][0]*k,oy+q[i][1]*k);
+    if((q.length-1)%step)x.lineTo(ox+q[q.length-1][0]*k,oy+q[q.length-1][1]*k);
+    if(s.closed)x.closePath();
+  }
+  x.stroke();
+  return cv.toDataURL('image/png');
+}
+async function vparse(name,bytes){
+  const T=Proj._t;let r;
+  if(/\.svg$/i.test(name))r=T.parseSvg(new TextDecoder('utf-8').decode(bytes));
+  else if(/\.dxf$/i.test(name))r=T.parseDxf(new TextDecoder('utf-8').decode(bytes));
+  else if(/\.eps$/i.test(name))r=T.parseEps(new TextDecoder('latin1').decode(bytes));
+  else r=await T.parseAi(bytes);
+  return vdraw(r);
+}
+function vecTask(fn){
+  const p=vq.then(async()=>{await new Promise(r=>setTimeout(r,0));try{await projReady();return await fn();}catch(_){return '';}});
+  vq=p.catch(()=>{});return p;
+}
+const vfc=new Map();
+function vecFile(h){ /* h = file handle */
+  return vecTask(async()=>{const f=await h.getFile();if(f.size>6e6||!vrank(f.name))return '';return vparse(f.name,new Uint8Array(await f.arrayBuffer()));});
+}
+function vecFolder(rel){
+  if(vfc.has(rel))return vfc.get(rel);
+  const p=vecTask(async()=>{
+    const root=await dirAt(rel.split('/'));let q=[root],seen=0,best=null,bi=0;
+    for(let depth=0;depth<4&&q.length&&!best;depth++){
+      const nx=[];
+      for(const d of q){
+        for await(const e of d.values()){
+          if(++seen>600)break;
+          if(e.kind==='directory'){nx.push(e);continue;}
+          const r=vrank(e.name);if(r>bi){const f=await e.getFile();if(f.size<6e6){best=e;bi=r;if(r===4)break;}}
+        }
+        if(best&&bi>=3)break;
+      }
+      q=nx;
+    }
+    if(!best)return '';
+    const f=await best.getFile();return vparse(f.name,new Uint8Array(await f.arrayBuffer()));
+  });
+  vfc.set(rel,p);return p;
+}
+function vecZip(f,ents){
+  const cand=ents.filter(e=>vrank(e.name)&&e.us<6e6);
+  if(!cand.length)return '';
+  const top=Math.max(...cand.map(e=>vrank(e.name)));
+  const L=cand.filter(e=>vrank(e.name)===top);
+  const e=L.find(x=>/3\s?mm/i.test(x.name))||L[0];
+  return Proj._t.unzipEntry(f,e).then(b=>vparse(e.name,b));
 }
 
 /* ---- avvio ---- */
@@ -142,6 +216,8 @@ const io=new IntersectionObserver(es=>es.forEach(async e=>{
   if(!e.isIntersecting)return;io.unobserve(e.target);
   const t=e.target;let u=t.dataset.p?await photoUrl(t.dataset.p):'';
   if(!u&&t.dataset.z)u=await zipPhoto(t.dataset.z);
+  if(!u&&t.dataset.v)u=await vecFolder(t.dataset.v);
+  if(t.__h&&!u)u=await vecFile(t.__h);
   if(u){t.textContent='';t.style.background='url("'+u+'") center/cover no-repeat';}
 }),{rootMargin:'200px'});
 const EM={'Arredo':'🪑','Luci':'💡','Scatole e contenitori':'📦','Casa e cucina':'🏠','Giochi e giocattoli':'🧩','Animali e sculture':'🦌','Decorazioni':'✨','Feste':'🎄','Giardino ed esterno':'🌿','Architettura e modelli':'🏛️','Meccanica e modelli':'⚙️','Religione':'✝️','Varie':'🔧'};
@@ -154,11 +230,12 @@ function ph(t,mac,title){
   const l=document.createElement('div');l.textContent='anteprima non disponibile';l.style.cssText='font-size:10px;color:#5a4a3a;opacity:.8';
   t.appendChild(e);t.appendChild(l);
 }
-function card(g,th,title,sub,fe,click,mac,z){
+function card(g,th,title,sub,fe,click,mac,z,v){
   const c=document.createElement('div');c.className='cc';
   const t=document.createElement('div');t.className='th';if(th){t.textContent='📁';t.dataset.p=th;}else ph(t,mac,title);
   if(z&&/\.zip$/i.test(z))t.dataset.z=z;
-  if(th||t.dataset.z)io.observe(t);
+  if(v)t.dataset.v=v;
+  if(th||t.dataset.z||v)io.observe(t);
   const x=document.createElement('div');x.className='tx';
   const b=document.createElement('b');b.textContent=title;x.appendChild(b);
   const s=document.createElement('small');s.textContent=sub;x.appendChild(s);
@@ -171,11 +248,11 @@ function draw(append){
   if(st.view==='prog'){
     list=DB.items.filter(i=>(!st.mac||i[3]===st.mac)&&(st.fe===''||String(i[8])===st.fe)&&(!st.q||(i[1]+' '+i[2]+' '+i[4]).toLowerCase().includes(st.q)));
     const from=append?g.children.length:0;
-    list.slice(from,st.n).forEach(i=>card(g,i[6],i[1],i[4],i[8],()=>detail(i),i[3],i[5]));
+    list.slice(from,st.n).forEach(i=>card(g,i[6],i[1],i[4],i[8],()=>detail(i),i[3],i[5],(!i[6]&&!/\.zip$/i.test(i[5]))?i[5]:''));
   }else if(st.view==='raw'){
     list=DB.raw.filter(r=>!st.q||(r[1]+' '+r[2]).toLowerCase().includes(st.q));
     const from=append?g.children.length:0;
-    list.slice(from,st.n).forEach(r=>card(g,'',r[1],r[4].categorie?r[3]+' categorie':r[3]+' file ('+Object.keys(r[4]).join(', ')+')',r[5],()=>detailRaw(r)));
+    list.slice(from,st.n).forEach(r=>card(g,'',r[1],r[4].categorie?r[3]+' categorie':r[3]+' file ('+Object.keys(r[4]).join(', ')+')',r[5],()=>detailRaw(r),undefined,undefined,r[0]));
   }else{
     list=DB.eng.filter(r=>!st.q||r[0].toLowerCase().includes(st.q));
     const from=append?g.children.length:0;
@@ -249,12 +326,16 @@ async function browse(rel,title){
   dirs.sort((a,b)=>a.name.localeCompare(b.name));files.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
   const show=()=>{
     const t=q.value.trim().toLowerCase();list.innerHTML='';let n=0;
-    const row=(txt,ok,fn)=>{const d=document.createElement('div');d.textContent=txt;d.style.cssText='padding:10px 8px;border-bottom:1px solid var(--line);'+(ok?'cursor:pointer;font-weight:600':'color:var(--mute)');if(ok)d.onclick=fn;list.appendChild(d);};
+    const row=(txt,ok,fn,h)=>{const d=document.createElement('div');d.style.cssText='padding:8px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;'+(ok?'cursor:pointer;font-weight:600':'color:var(--mute)');
+      const th=document.createElement('div');th.style.cssText='flex:0 0 56px;height:56px;border-radius:8px;background:var(--soft) center/contain no-repeat;display:flex;align-items:center;justify-content:center;font-size:22px';
+      if(h){th.__h=h;th.textContent='📐';io.observe(th);}else th.textContent=txt.startsWith('📁')?'📁':'·';
+      const s=document.createElement('span');s.textContent=txt.replace(/^📁 |^📐 /,'');s.style.cssText='word-break:break-word';
+      d.appendChild(th);d.appendChild(s);if(ok)d.onclick=fn;list.appendChild(d);};
     for(const d of dirs){if(t&&!d.name.toLowerCase().includes(t))continue;if(n++>=300)break;row('📁 '+d.name,true,()=>browse(rel+'/'+d.name,d.name));}
     for(const f of files){
       if(t&&!f.name.toLowerCase().includes(t))continue;if(n++>=300)break;
       const ok=/\.(svg|dxf|eps|ai)$/i.test(f.name);
-      row((ok?'📐 ':'')+f.name,ok,async()=>{try{openFileHandle(await f.getFile());}catch(e){alert('Non riesco ad aprirlo: '+(e.message||e));}});
+      row((ok?'📐 ':'')+f.name,ok,async()=>{try{openFileHandle(await f.getFile());}catch(e){alert('Non riesco ad aprirlo: '+(e.message||e));}},ok?f:null);
     }
     if(n>=300)line(list,'div','Elenco troncato a 300: scrivi nel filtro per restringere.','hint');
     if(!n)line(list,'div','Niente qui.','hint');

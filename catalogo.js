@@ -229,6 +229,38 @@ async function detail(i){
   if(!can)line(b,'p','Questo progetto è in formato '+fm.filter(f=>f!=='jpg'&&f!=='png').join('/').toUpperCase()+': laserBrio non lo sa ancora aprire (legge SVG e DXF).','hint');
   else if(zip)line(b,'p','Se lo zip contiene più spessori (3, 4, 6 mm) apro il 3 mm: gli altri sono nell\'elenco.','hint');
 }
+async function openFileHandle(f){
+  $('catDet')&&$('catDet').remove();$('catOv').hidden=true;document.body.style.overflow='';
+  if(window.setMode)setMode('taglia');
+  if(window.setProj)setProj('file');
+  const w=()=>window.Proj&&Proj.openFile?Proj.openFile(f):setTimeout(w,200);w();
+  setTimeout(()=>{const e=$('s2t');if(e)e.scrollIntoView({behavior:'smooth'});},300);
+}
+async function browse(rel,title){
+  const b=sheet();
+  line(b,'h3',title).style.margin='0 0 2px';
+  line(b,'div','Cartella: '+rel+' · si aprono i file DXF e SVG (CDR, EPS e AI per ora no).','hint');
+  const q=document.createElement('input');q.type='text';q.placeholder='Cerca nel nome';q.style.margin='8px 0';b.appendChild(q);
+  const list=document.createElement('div');b.appendChild(list);
+  let dirs=[],files=[];
+  try{const d=await dirAt(rel.split('/'));for await(const e of d.values()){if(e.kind==='directory')dirs.push(e);else files.push(e);}}
+  catch(e){line(b,'p','Cartella non trovata.','hint');}
+  dirs.sort((a,b)=>a.name.localeCompare(b.name));files.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+  const show=()=>{
+    const t=q.value.trim().toLowerCase();list.innerHTML='';let n=0;
+    const row=(txt,ok,fn)=>{const d=document.createElement('div');d.textContent=txt;d.style.cssText='padding:10px 8px;border-bottom:1px solid var(--line);'+(ok?'cursor:pointer;font-weight:600':'color:var(--mute)');if(ok)d.onclick=fn;list.appendChild(d);};
+    for(const d of dirs){if(t&&!d.name.toLowerCase().includes(t))continue;if(n++>=300)break;row('📁 '+d.name,true,()=>browse(rel+'/'+d.name,d.name));}
+    for(const f of files){
+      if(t&&!f.name.toLowerCase().includes(t))continue;if(n++>=300)break;
+      const ok=/\.(svg|dxf)$/i.test(f.name);
+      row((ok?'📐 ':'')+f.name,ok,async()=>{try{openFileHandle(await f.getFile());}catch(e){alert('Non riesco ad aprirlo: '+(e.message||e));}});
+    }
+    if(n>=300)line(list,'div','Elenco troncato a 300: scrivi nel filtro per restringere.','hint');
+    if(!n)line(list,'div','Niente qui.','hint');
+  };
+  q.oninput=show;show();
+  const x=document.createElement('button');x.className='btn';x.style.marginTop='12px';x.textContent='Chiudi';x.onclick=()=>$('catDet').remove();b.appendChild(x);
+}
 function detailRaw(r){
   const b=sheet();
   line(b,'h3',r[1]).style.margin='0 0 4px';
@@ -236,6 +268,7 @@ function detailRaw(r){
   const p=line(b,'span',FE[r[5]]+' sull\'S9 (stima)','pill '+FC[r[5]]);p.style.margin='8px 0';
   line(b,'div',r[6],'hint');
   line(b,'div',r[3]+' file, formati: '+Object.entries(r[4]).map(([k,v])=>k.toUpperCase()+' '+v).join(', ')+' (senza foto di anteprima)','hint');
+  const go=document.createElement('button');go.className='btn primary big';go.style.marginTop='12px';go.style.marginRight='8px';go.textContent='Sfoglia la cartella';go.onclick=()=>browse(r[0],r[1]);b.appendChild(go);
   const x=document.createElement('button');x.className='btn';x.style.marginTop='12px';x.textContent='Chiudi';x.onclick=()=>$('catDet').remove();b.appendChild(x);
 }
 async function engFolder(r){

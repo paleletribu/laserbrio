@@ -122,6 +122,69 @@ function vecZip(f,ents){
   return Proj._t.unzipEntry(f,e).then(b=>vparse(e.name,b));
 }
 
+/* ---- aggiungi progetti nuovi: rilegge la cartella e aggiorna catalogo.json ---- */
+const VEXT=/\.(svg|dxf|eps|ai|cdr)$/i;
+const MACN=[[/scatol|box|casket|cofan|contenit|organizer|salvadan|portatov/i,'Scatole e contenitori'],[/lamp|light|lume|luce|lanterna/i,'Luci'],[/chair|table|bed\b|shelf|shelves|furniture|dresser|sedia|tavol|mobil|mensol|letto|cassett|rocking/i,'Arredo'],[/clock|coaster|kitchen|frame|cornic|vase|vaso|tray|vassoio|orolog|tagliere|cutting/i,'Casa e cucina'],[/game|puzzle|toy|doll|gioc|bambol/i,'Giochi e giocattoli'],[/animal|dog|cat\b|bird|horse|deer|head|cane|gatto|dinosaur|elephant/i,'Animali e sculture'],[/christmas|natale|wedding|easter|pasqua|halloween|topper|matrimon/i,'Feste'],[/garden|giardin|barbecue|feeder|birdhouse/i,'Giardino ed esterno'],[/house|building|facade|church|chiesa|architect|castle|castello/i,'Architettura e modelli'],[/\bcar\b|truck|model|machine|mechan|airplane|ship|tank/i,'Meccanica e modelli'],[/cross|croce|saint|santo|icon|angel|madonna|jesus|gesu/i,'Religione'],[/key ?chain|pendant|charm|ring\b|jewel|portachiavi|medallion|earring/i,'Gioielli e piccoli oggetti'],[/panel|pattern|ornament|decor|mandala|grid|lattice/i,'Pannelli e decori'],[/letter|word|font|alphabet|lettere|monogram|name/i,'Scritte']];
+function macroNew(s){for(const [re,m] of MACN)if(re.test(s))return m;return 'Importati';}
+function feasNew(s,mac){
+  if(/plasma|metal|sandblast|sabbiat/i.test(s))return [0,'pensato per metallo/plasma/sabbiatura'];
+  const m=s.match(/(\d+(?:[.,]\d+)?)\s*mm/i);
+  if(m){const mm=parseFloat(m[1].replace(',','.'));if(mm>6)return [0,'spessore '+mm+' mm: oltre i limiti dell\'S9'];if(mm>3)return [1,'spessore '+mm+' mm: taglio marginale, più passate'];}
+  if(/acrylic|acrilic/i.test(s))return [1,'acrilico: solo opaco/colorato'];
+  if(mac==='Arredo'||mac==='Architettura e modelli')return [1,'stima automatica: pezzi spesso grandi, controlla misure e spessore'];
+  return [2,'stima automatica: controlla misure e spessore'];
+}
+function cleanName(n){return n.replace(/\.[a-z0-9]{2,4}$/i,'').replace(/^name_/i,'').replace(/^\d+[_\- ]+/,'').replace(/_/g,' ').replace(/\s+/g,' ').trim()||n;}
+async function addNew(){
+  const b=sheet();
+  line(b,'h3','Aggiungi progetti nuovi').style.margin='0 0 6px';
+  const msg=line(b,'p','Controllo la cartella…','hint');
+  const x=document.createElement('button');x.className='btn';x.style.marginTop='12px';x.textContent='Chiudi';x.onclick=()=>$('catDet').remove();
+  try{
+    if(ROOT.requestPermission){const p=await ROOT.requestPermission({mode:'readwrite'});if(p!=='granted')throw new Error('Serve il permesso di scrittura sulla cartella per aggiornare catalogo.json.');}
+    const known=new Set(DB.items.map(i=>i[5]));
+    const skip=[...DB.raw.map(r=>r[0]),...DB.eng.map(r=>r[1]),...DB.items.filter(i=>!/\.zip$/i.test(i[5])).map(i=>i[5])];
+    const under=p=>skip.some(s=>p===s||p.startsWith(s+'/'));
+    const newItems=[],newRaw=[];let seen=0,nid=0;
+    async function walk(dir,rel,depth){
+      if(rel&&under(rel))return;
+      const files=[],dirs=[];
+      for await(const e of dir.values()){
+        if(++seen%300===0){msg.textContent='Controllo la cartella… '+seen+' voci, trovati '+(newItems.length+newRaw.length)+' nuovi';await new Promise(r=>setTimeout(r,0));}
+        if(e.kind==='directory')dirs.push(e);else files.push(e.name);
+      }
+      const p=n=>rel?rel+'/'+n:n;
+      for(const f of files)if(/\.zip$/i.test(f)&&!known.has(p(f))){
+        const path=p(f),nm=cleanName(f),mac=macroNew(path),fe=feasNew(path,mac);
+        newItems.push([(f.match(/^\d+/)||['n'+(++nid)])[0],nm,f.replace(/\.zip$/i,''),mac,rel?rel.split('/').pop():'Importati',path,'',['zip'],fe[0],fe[1]]);
+      }
+      const vec=files.filter(f=>VEXT.test(f));
+      if(rel&&vec.length){
+        const ex={};files.forEach(f=>{const m=f.match(/\.([a-z0-9]{2,4})$/i);if(m)ex[m[1].toLowerCase()]=(ex[m[1].toLowerCase()]||0)+1;});
+        const nm=cleanName(rel.split('/').pop()),mac=macroNew(rel),fe=feasNew(rel,mac);
+        if(vec.length>=10){newRaw.push([rel,nm,mac,files.length,ex,fe[0],fe[1]]);}
+        else{
+          const im=files.filter(f=>/\.(jpe?g|png)$/i.test(f)),ph=im.find(f=>/photo/i.test(f))||im[0]||'';
+          newItems.push([(rel.split('/').pop().match(/^\d+/)||['n'+(++nid)])[0],nm,rel.split('/').pop(),mac,rel.split('/').slice(-2,-1)[0]||'Importati',rel,ph?p(ph):'',Object.keys(ex),fe[0],fe[1]]);
+        }
+        return;
+      }
+      if(depth<6)for(const d of dirs)await walk(d,p(d.name),depth+1);
+    }
+    await walk(ROOT,'',0);
+    if(!newItems.length&&!newRaw.length){msg.textContent='Nessun progetto nuovo: tutto quello che c\'è nella cartella è già nel catalogo ('+seen+' voci controllate).';}
+    else{
+      DB.items.push(...newItems);DB.raw.push(...newRaw);
+      const old=await (await ROOT.getFileHandle('catalogo.json')).getFile();
+      const bk=await ROOT.getFileHandle('catalogo-prima.json',{create:true});let w=await bk.createWritable();await w.write(await old.text());await w.close();
+      const fh=await ROOT.getFileHandle('catalogo.json');w=await fh.createWritable();await w.write(JSON.stringify(DB));await w.close();
+      msg.textContent='Aggiunti '+newItems.length+' progetti e '+newRaw.length+' raccolte. I nomi restano come sono nei file (non vengono tradotti), e la fattibilità sull\'S9 è una stima automatica dallo spessore nel nome. Ho tenuto una copia del catalogo precedente (catalogo-prima.json).';
+      render();
+    }
+  }catch(e){msg.textContent='Non riesco ad aggiornare: '+(e.message||e);msg.style.color='var(--bad)';}
+  b.appendChild(x);
+}
+
 /* ---- avvio ---- */
 function css(){
   if($('catCss'))return;
@@ -197,6 +260,7 @@ function views(){
   [['prog','Progetti con foto'],['raw','Raccolte vettoriali'],['eng','Immagini da incidere']].forEach(([k,t])=>{
     const b=document.createElement('span');b.className='chip'+(st.view===k?' on':'');b.textContent=t;
     b.onclick=()=>{st.view=k;st.mac='';st.n=60;render();};v.appendChild(b);});
+  const ad=document.createElement('span');ad.className='chip';ad.style.borderStyle='dashed';ad.textContent='➕ Aggiungi progetti nuovi';ad.onclick=()=>{if(DB&&ROOT)addNew();};v.appendChild(ad);
 }
 function render(){
   views();

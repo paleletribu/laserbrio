@@ -179,6 +179,13 @@ function build(ops,smax){
   out.push('M5','G0 X0 Y0');
   return {lines:out,timeSec:sec*1.1+10,len};
 }
+function flipY(ops,H){   // il disegno ha la Y verso il basso, il laser verso il fondo: senza questo scritte e QR verrebbero specchiati
+  return ops.map(o=>{
+    if(o.k==='run')return Object.assign({},o,{y:H-o.y});
+    if(o.k==='fill')return Object.assign({},o,{y:H-o.y-o.h});
+    return Object.assign({},o,{pts:o.pts.map(q=>[q[0],H-q[1]])});
+  });
+}
 function bounds(ops){
   let a=1e9,b=1e9,c=-1e9,d=-1e9;
   const add=(x,y)=>{if(x<a)a=x;if(x>c)c=x;if(y<b)b=y;if(y>d)d=y;};
@@ -213,6 +220,7 @@ function draw(cv,ops,bd){
     if(o.closed)x.closePath();x.stroke();
   }
 }
+const bd0=ops=>bounds(ops).h;
 function fmtTime(s){const m=Math.round(s/60);return m<1?'meno di 1 min':(m<60?m+' min':Math.floor(m/60)+' h '+(m%60)+' min');}
 function card(parent,tp,E){
   const c=document.createElement('div');c.className='pvc';parent.appendChild(c);
@@ -236,7 +244,7 @@ function card(parent,tp,E){
     try{
       const ops=tp.gen(val,E);
       if(!ops.length)throw new Error('Controlla i valori scritti.');
-      const bd=bounds(ops),r=build(ops,E.smax()),A=E.area();
+      const bd=bounds(ops),r=build(flipY(ops,bd0(ops)),E.smax()),A=E.area();Prove._last={ops,bd};
       draw(cv,ops,bd);
       const fits=bd.w<=A.w&&bd.h<=A.h;
       info.style.color=fits?'':'var(--bad)';
@@ -254,20 +262,43 @@ function card(parent,tp,E){
 function picker(box,d,full){
   const G=parseG(d.g);if(G.length<4||G.some(a=>!a.length))return;
   const [cs,cp,es,ep]=G;let selC=null,selE=null;
+  const A=Array.isArray(d.a)&&d.a.length===ep.length&&d.a.every(r=>Array.isArray(r)&&r.length===es.length)?d.a:null;
   const wrap=document.createElement('div');wrap.style.marginTop='8px';box.appendChild(wrap);
-  const mk=(title,S,P,pick)=>{
-    const h=document.createElement('p');h.className='hint';h.textContent=title;wrap.appendChild(h);
-    const t=document.createElement('div');t.style.cssText='display:grid;grid-template-columns:repeat('+S.length+',1fr);gap:6px;max-width:420px';
-    P.forEach(pc=>S.forEach(v=>{
-      const b=document.createElement('button');b.className='btn';b.style.cssText='padding:8px 2px;font-size:13px';b.textContent=pc+'% · '+v;
-      b.onclick=()=>{pick(pc,v);t.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');sv.disabled=false;};
-      t.appendChild(b);
+  const sv=document.createElement('button');
+  const say=(t,b)=>{const h=document.createElement('p');h.className='hint';if(b)h.innerHTML=t;else h.textContent=t;wrap.appendChild(h);return h;};
+  const grid=(S,P,pick,lab)=>{
+    const t=document.createElement('div');t.style.cssText='display:grid;grid-template-columns:repeat('+S.length+',1fr);gap:6px;max-width:440px;margin:6px 0';
+    const btns=[];
+    P.forEach((pc,j)=>S.forEach((v,i)=>{
+      const b=document.createElement('button');b.className='btn';b.style.cssText='padding:8px 2px;font-size:13px;line-height:1.25';
+      b.innerHTML=pc+'% · '+v+(lab?'<br><small>'+lab(j,i)+'</small>':'');
+      b.onclick=()=>{pick(pc,v);btns.forEach(x=>x.classList.remove('on'));b.classList.add('on');sv.disabled=false;};
+      t.appendChild(b);btns.push(b);b._j=j;b._i=i;
     }));
-    wrap.appendChild(t);
+    wrap.appendChild(t);return btns;
   };
-  mk('Taglio: tocca il quadratino che si è staccato bene con la velocità più alta (potenza % · velocità mm/min).',cs,cp,(pc,v)=>{selC=[pc,v];});
-  mk('Incisione: tocca il quadrato con il tono che ti piace, senza bruciare (potenza % · velocità mm/min).',es,ep,(pc,v)=>{selE=[pc,v];});
-  const sv=document.createElement('button');sv.className='btn primary';sv.textContent='Salva questo materiale';sv.disabled=true;sv.style.marginTop='10px';wrap.appendChild(sv);
+  // ---- TAGLIO ----
+  say('1) TAGLIO — scegli il quadratino PIÙ VELOCE che si è staccato del tutto.',false).style.fontWeight='700';
+  say('Come si fa: spingi con un dito ogni quadratino. Deve cadere da solo, senza forzare. Tra quelli che cadono scegli quello con la velocità più alta (se hanno la stessa velocità, quello con meno potenza). Se nessuno cade, il taglio è troppo debole: rifai la scheda con velocità più bassa. Le etichette sono potenza % · velocità mm/min.',false);
+  say('Dalla foto non si capisce se il taglio è passato: questa scelta tocca a te.',false);
+  grid(cs,cp,(pc,v)=>{selC=[pc,v];});
+  // ---- INCISIONE ----
+  say('2) INCISIONE — scegli il quadrato PIÙ SCURO che è ancora pulito.',false).style.fontWeight='700';
+  say('Pulito vuol dire: tono uniforme, niente bordi neri carbonizzati, niente macchie di fumo né fiammate intorno. Non sempre il più scuro è il migliore: oltre un certo punto brucia soltanto. Se due sembrano uguali, prendi quello con meno potenza.',false);
+  let sug=null;
+  if(A){
+    const cells=[];ep.forEach((pc,j)=>es.forEach((v,i)=>cells.push({j,i,pc,v,e:pc/v,d:A[j][i]})));
+    const dm=Math.max(...cells.map(c=>c.d));
+    if(dm>=0.08){
+      cells.sort((a,b)=>a.e-b.e);
+      sug=cells.find(c=>c.d>=0.85*dm)||cells[cells.length-1];
+      say('Ho misurato dalla foto quanto è scuro ogni quadrato (la percentuale scritta sotto). Ti consiglio quello con ★: è il primo, partendo dal più leggero, che arriva quasi al massimo di scurezza (il più scuro in assoluto è '+Math.round(dm*100)+'%). Guardalo dal vivo: se ha bordi bruciati o fumo, scegli invece uno più leggero.',false);
+    }else say('Dalla foto i quadrati sembrano tutti molto chiari: la foto è sfocata, troppo lontana, o la potenza della prova era troppo bassa. Scegli tu a occhio.',false);
+    if(d.ov){const im=document.createElement('img');im.src=d.ov;im.style.cssText='width:100%;max-width:440px;border-radius:8px;border:1px solid var(--line)';wrap.appendChild(im);say('Controllo: i riquadri verdi (incisione) e blu (taglio) devono stare sopra i quadrati veri. Se sono spostati, rifai la foto più dritta e più vicina: i numeri non vanno bene.',false);}
+  }
+  const eb=grid(es,ep,(pc,v)=>{selE=[pc,v];},A?(j,i)=>(sug&&sug.j===j&&sug.i===i?'★ ':'')+'scuro '+Math.round(A[j][i]*100)+'%':null);
+  if(sug){const b=eb.find(x=>x._j===sug.j&&x._i===sug.i);if(b)b.click();}
+  sv.className='btn primary';sv.textContent='Salva questo materiale';sv.disabled=!sug;sv.style.marginTop='10px';wrap.appendChild(sv);
   const st=document.createElement('p');st.className='hint';wrap.appendChild(st);
   sv.onclick=()=>{
     const m={id:'c_'+Date.now(),name:full,minP:8,maxP:65,speed:2500};
@@ -282,25 +313,70 @@ function loadJsQR(){
   if(window.jsQR)return Promise.resolve();
   return jsq||(jsq=new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';s.onload=res;s.onerror=()=>{jsq=null;rej(new Error('rete'));};document.head.appendChild(s);}));
 }
-async function decodeQR(src){
-  if(window.BarcodeDetector){try{const r=await new BarcodeDetector({formats:['qr_code']}).detect(src);if(r[0]&&r[0].rawValue)return r[0].rawValue;}catch(e){}}
-  await loadJsQR();
-  for(const k of [1,0.6,0.35]){
-    const w=Math.round(src.width*k),h=Math.round(src.height*k),cv=document.createElement('canvas');cv.width=w;cv.height=h;
-    const cx=cv.getContext('2d');cx.drawImage(src,0,0,w,h);
-    const r=window.jsQR(cx.getImageData(0,0,w,h).data,w,h);if(r&&r.data)return r.data;
+async function scan(src){   // legge il QR e dove sono i suoi tre angoli nella foto
+  let text=null,cor=null,fin=null;
+  if(window.BarcodeDetector){try{const r=await new BarcodeDetector({formats:['qr_code']}).detect(src);if(r[0]&&r[0].rawValue){text=r[0].rawValue;cor=r[0].cornerPoints||null;}}catch(e){}}
+  try{await loadJsQR();}catch(e){if(!text)throw e;}
+  if(window.jsQR){
+    for(const k of [1,0.6,0.35]){
+      const w=Math.round(src.width*k),h=Math.round(src.height*k),cv=document.createElement('canvas');cv.width=w;cv.height=h;
+      const cx=cv.getContext('2d');cx.drawImage(src,0,0,w,h);
+      const r=window.jsQR(cx.getImageData(0,0,w,h).data,w,h);
+      if(r&&r.data){
+        if(!text)text=r.data;
+        const L=r.location;fin=[L.topLeftFinderPattern,L.topRightFinderPattern,L.bottomLeftFinderPattern].map(p=>[p.x/k,p.y/k]);
+        break;
+      }
+    }
   }
-  return null;
+  return text?{text,cor,fin}:null;
+}
+/* guarda la foto: quanto è scuro ogni quadrato di incisione rispetto al legno che ha intorno */
+function analyse(src,sc,G){
+  try{
+    const [cs,cp,es,ep]=G,c=8,g=5,oy=26,ox2=16+cs.length*(c+g)+16,xq=ox2+es.length*(c+g)+6;
+    const mod=0.8,Mn=QR.make([...new TextEncoder().encode(sc.text)]).length,s=Mn*mod,fo=3.5*mod;
+    let P,Q;
+    if(sc.fin){P=[[xq+fo,4+fo],[xq+s-fo,4+fo],[xq+fo,4+s-fo]];Q=sc.fin;}
+    else if(sc.cor&&sc.cor.length>=4){P=[[xq,4],[xq+s,4],[xq,4+s]];Q=[sc.cor[0],sc.cor[1],sc.cor[3]].map(p=>[p.x,p.y]);}
+    else return null;
+    const ux=P[1][0]-P[0][0],uy=P[1][1]-P[0][1],vx=P[2][0]-P[0][0],vy=P[2][1]-P[0][1],det=ux*vy-uy*vx;
+    if(Math.abs(det)<1e-6)return null;
+    const Ux=Q[1][0]-Q[0][0],Uy=Q[1][1]-Q[0][1],Vx=Q[2][0]-Q[0][0],Vy=Q[2][1]-Q[0][1];
+    const a=(Ux*vy-Vx*uy)/det,b=(Vx*ux-Ux*vx)/det,cc=(Uy*vy-Vy*uy)/det,d=(Vy*ux-Uy*vx)/det;
+    const f=(x,y)=>[Q[0][0]+a*(x-P[0][0])+b*(y-P[0][1]),Q[0][1]+cc*(x-P[0][0])+d*(y-P[0][1])];
+    const W=src.width,H=src.height,id=src.getContext('2d').getImageData(0,0,W,H).data;
+    let bad=0;
+    const lum=(x,y)=>{const [px,py]=f(x,y),ix=Math.round(px),iy=Math.round(py);if(ix<1||iy<1||ix>=W-1||iy>=H-1){bad++;return null;}let t=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const k=((iy+dy)*W+ix+dx)*4;t+=0.299*id[k]+0.587*id[k+1]+0.114*id[k+2];}return t/9;};
+    const avg=a=>{const v=a.filter(x=>x!=null);return v.length?v.reduce((p,q)=>p+q,0)/v.length:null;};
+    const dark=[];
+    ep.forEach((pc,j)=>{dark.push([]);es.forEach((v,i)=>{
+      const x=ox2+i*(c+g),y=oy+j*(c+g),inn=[],out=[];
+      for(let p=0;p<5;p++)for(let q=0;q<5;q++)inn.push(lum(x+1.5+p*1.25,y+1.5+q*1.25));
+      for(let p=0;p<5;p++){const t=1.5+p*1.25;out.push(lum(x+t,y-1.3),lum(x+t,y+c+1.3),lum(x-1.3,y+t),lum(x+c+1.3,y+t));}
+      const li=avg(inn),lo=avg(out);
+      dark[j].push(li==null||lo==null||lo<20?null:Math.max(0,Math.min(1,1-li/lo)));
+    });});
+    if(bad>200||dark.flat().some(x=>x==null))return null;
+    // foto di controllo con i quadrati riconosciuti
+    const k=Math.min(1,720/W),cv=document.createElement('canvas');cv.width=Math.round(W*k);cv.height=Math.round(H*k);
+    const x=cv.getContext('2d');x.drawImage(src,0,0,cv.width,cv.height);x.lineWidth=2;x.font='bold 13px sans-serif';
+    const box=(x0,y0,w,h,col)=>{x.strokeStyle=col;x.beginPath();[[x0,y0],[x0+w,y0],[x0+w,y0+h],[x0,y0+h]].forEach((p,i)=>{const q=f(p[0],p[1]);i?x.lineTo(q[0]*k,q[1]*k):x.moveTo(q[0]*k,q[1]*k);});x.closePath();x.stroke();};
+    cp.forEach((pc,j)=>cs.forEach((v,i)=>box(16+i*(c+g),oy+j*(c+g),c,c,'#1f6feb')));
+    ep.forEach((pc,j)=>es.forEach((v,i)=>{box(ox2+i*(c+g),oy+j*(c+g),c,c,'#19a974');const q=f(ox2+i*(c+g)+1,oy+j*(c+g)+c/2);x.fillStyle='#19a974';x.fillText(Math.round(dark[j][i]*100)+'%',q[0]*k,q[1]*k);}));
+    return {dark,ov:cv.toDataURL('image/jpeg',0.6)};
+  }catch(e){return null;}
 }
 async function readScheda(src,msgEl){
   msgEl.style.color='';msgEl.textContent='Leggo il QR…';
-  let txt=null;
-  try{txt=await decodeQR(src);}catch(e){msgEl.style.color='var(--bad)';msgEl.textContent='Non riesco a caricare il lettore: serve internet.';return;}
+  let sc=null,txt=null;
+  try{sc=await scan(src);txt=sc&&sc.text;}catch(e){msgEl.style.color='var(--bad)';msgEl.textContent='Non riesco a caricare il lettore: serve internet.';return;}
   if(!txt){msgEl.style.color='var(--bad)';msgEl.textContent='Non trovo il QR. Riprova con più luce, tutto il QR dentro la foto e senza riflessi.';return;}
   let q=null;try{q=new URL(txt).searchParams;}catch(e){}
   if(!q||!q.get('m')){msgEl.style.color='var(--bad)';msgEl.textContent='Questo QR non è di una scheda laserBrio.';return;}
   $('pvOv').hidden=true;document.body.style.overflow='';
-  window.Lb.material({m:q.get('m'),s:q.get('s'),g:q.get('g'),c:q.get('c'),i:q.get('i')});
+  const G=q.get('g')?parseG(q.get('g')):[],an=(G.length>=4&&G.every(a=>a.length))?analyse(src,sc,G):null;
+  window.Lb.material({m:q.get('m'),s:q.get('s'),g:q.get('g'),c:q.get('c'),i:q.get('i'),a:an&&an.dark,ov:an&&an.ov});
 }
 function fromFile(f,msgEl){
   const img=new Image(),u=URL.createObjectURL(f);
@@ -326,5 +402,5 @@ function open(){
   }
   o.hidden=false;document.body.style.overflow='hidden';o.scrollTop=0;
 }
-window.Prove={open,picker};
+window.Prove={open,picker,scan,analyse};
 })();

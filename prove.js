@@ -18,6 +18,7 @@ function text(s,x,y,pct){            // altezza 3,6 mm, passo 3 mm; (x,y) = ango
   return o;
 }
 const rect=(x,y,w,h)=>[[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
+const rrect=(x,y,w,h,r)=>{const p=[],a=(cx,cy,a0)=>{for(let k=0;k<=6;k++){const t=(a0+k*15)*Math.PI/180;p.push([cx+r*Math.cos(t),cy+r*Math.sin(t)]);}};a(x+w-r,y+r,-90);a(x+w-r,y+h-r,0);a(x+r,y+h-r,90);a(x+r,y+r,180);return p;};
 const nums=s=>String(s).split(/[,; ]+/).map(Number).filter(v=>isFinite(v)&&v>0);
 
 /* ---------- QR code (byte, correzione M, versioni 1-10) ---------- */
@@ -103,7 +104,7 @@ const LAB=12;   // potenza delle scritte (incisione leggera)
 const parseG=str=>String(str||'').split('_').map(g=>nums(g.replace(/,/g,' ')));
 const T=[
  {id:'scheda',name:'Scheda di prova (un foglio solo)',
-  desc:'Un unico foglio da fare su ogni nuovo legno e da conservare. Sopra c\'è scritto il nome del materiale e lo spessore; poi i quadratini di taglio e di incisione (potenza × velocità), la scala di grigi, le linee per il fuoco, le fessure per gli incastri e un QR. Alla fine il foglio viene tagliato lungo il contorno. Per scegliere i valori giusti, fotografa il foglio col QR (o inquadralo con la camera) e tocca i quadratini migliori: laserBrio si ricorda potenza e velocità.',
+  desc:'Un foglio solo da incidere su ogni nuovo legno e da conservare: nome, spessore e data, quadratini di taglio e di incisione, scala di grigi, fuoco, incastri e un QR. Dopo l\'incisione fotografa il foglio col QR: laserBrio ti guida a scegliere i valori giusti e li ricorda.',
   par:[['cs','Taglio: velocità (mm/min)','150,250,400'],['cp','Taglio: potenze (%)','70,85,100'],['es','Incisione: velocità (mm/min)','1500,2500,3500'],['ep','Incisione: potenze (%)','15,30,45'],
        ['rmin','Scala di grigi: da (%)','5'],['rmax','Scala di grigi: a (%)','50'],['rs','Scala di grigi: velocità','2000'],['fp','Fuoco: potenza (%)','30'],['fs','Fuoco: velocità','1500'],['step','Incastro: passo delle fessure (mm)','0.1'],
        ['qp','Potenza di scritte e QR (%)','30'],['cont','Taglia il contorno (si/no)','si']],
@@ -112,7 +113,10 @@ const T=[
     if(!cs.length||!cp.length||!es.length||!ep.length)return [];
     const nome=(GL.nome||'Materiale').trim(),sp=(GL.sp||'').trim(),t=+sp||3,qp=Math.min(100,+p.qp||30),F=2000,c=8,g=5,ops=[],cuts=[];
     const t1=textOps(nome.toUpperCase(),4,3,5,qp,F,0.15);ops.push(...t1.ops);
-    if(sp)ops.push(...textOps(sp+' mm',4,10.5,3.5,qp,F,0.15).ops);
+    const tsp=sp?textOps(sp+' mm',4,10.5,3.5,qp,F,0.15):null;if(tsp)ops.push(...tsp.ops);
+    const dd=new Date(),ds=String(dd.getDate()).padStart(2,'0')+'/'+String(dd.getMonth()+1).padStart(2,'0')+'/'+String(dd.getFullYear()).slice(2);
+    ops.push(...textOps(ds,4+(tsp?tsp.w+5:0),10.5,3.5,Math.min(qp,LAB+8),F,0.15).ops);
+    const tit=(s,x,y)=>ops.push(...textOps(s,Math.max(4,x),y,2.8,Math.min(qp,LAB+10),F,0.15).ops);
     const oy=26,hy=oy-6;
     const grid=(ox,S,P,eng)=>{
       S.forEach((v,i)=>ops.push(...text(v,ox+i*(c+g)+(c-String(v).length*3)/2+0.6,hy,LAB)));
@@ -125,6 +129,7 @@ const T=[
     };
     const ox1=16,ox2=ox1+cs.length*(c+g)+16;
     grid(ox1,cs,cp,false);grid(ox2,es,ep,true);
+    tit('TAGLIO',ox1-9,16);tit('INCISIONE',ox2-9,16);
     const gb=oy+Math.max(cp.length,ep.length)*(c+g);
     const xq=ox2+es.length*(c+g)+6;
     const url='https://paleletribu.github.io/laserbrio/?m='+encodeURIComponent(nome)+(sp?'&s='+encodeURIComponent(sp):'')+'&g='+[cs,cp,es,ep].map(a=>a.join(',')).join('_');
@@ -133,13 +138,13 @@ const T=[
     const yf=4+q.size+6,fp=Math.min(100,+p.fp||30),fs=+p.fs||1500;
     for(let i=0;i<6;i++){ops.push({k:'line',pts:[[xq+6,yf+i*4],[xq+q.size,yf+i*4]],pct:fp,F:fs});ops.push(...text(i+1,xq,yf+i*4-1.8,LAB));}
     // riga 2: scala di grigi e fessure
-    const y2=gb+4,a0=Math.max(1,+p.rmin||5),a1=Math.min(100,+p.rmax||50);
+    const y2=gb+5,a0=Math.max(1,+p.rmin||5),a1=Math.min(100,+p.rmax||50);
     for(let i=0;i<6;i++){
       const pc=Math.round(a0+(a1-a0)*i/5),x=4+i*11;
       ops.push({k:'fill',x,y:y2,w:8,h:14,pct:pc,F:+p.rs||2000,iv:0.1});
       ops.push(...text(pc,x+(8-String(pc).length*3)/2+0.6,y2+16,LAB));
     }
-    const co=E.cut(),sx=4+6*11+10,st=Math.max(0.02,+p.step||0.1);
+    const co=E.cut(),sx=4+6*11+10;tit('GRIGI',4,y2-4);tit('INCASTRI',sx,y2-4);tit('FUOCO',xq,yf-4.5);const st=Math.max(0.02,+p.step||0.1);
     for(let i=0;i<7;i++){
       const w=t+(i-3)*st,x=sx+i*9+(9-w)/2,lab=String(Math.round(w*10));
       ops.push(...text(lab,sx+i*9+(9-lab.length*3)/2+0.6,y2+16,LAB));
@@ -147,7 +152,7 @@ const T=[
     }
     const W=Math.max(xq+q.size+4,sx+63+4,t1.w+8),H=Math.max(y2+24,yf+24+2);
     const all=ops.concat(cuts);
-    if(!/^n/i.test(String(p.cont).trim()))all.push({k:'cut',pts:rect(0,0,W,H),closed:true,pct:co.pct,F:co.F,passes:co.passes});
+    if(!/^n/i.test(String(p.cont).trim()))all.push({k:'cut',pts:rrect(0,0,W,H,4),closed:true,pct:co.pct,F:co.F,passes:co.passes});
     return all;}}
 ];
 
@@ -202,16 +207,17 @@ function css(){
 #pvOv .top{display:flex;justify-content:space-between;align-items:center;gap:10px;position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:2;border-bottom:1px solid var(--line)}
 .pvc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:12px}
 .pvc h3{margin:0 0 4px}
-.pvc canvas{width:100%;max-width:420px;background:#fff;border:1px solid var(--line);border-radius:8px;display:block;margin:8px 0}
+.pvc canvas{width:100%;max-width:560px;background:#fff;border:1px solid var(--line);border-radius:8px;display:block;margin:8px 0}
 .pvp{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin:8px 0}
 .pvp label{font-size:13px;color:var(--mute)}`;
   document.head.appendChild(s);
 }
 function draw(cv,ops,bd){
-  const W=420,k=(W-20)/Math.max(bd.w,bd.h,1);
-  cv.width=W;cv.height=Math.max(80,Math.round(bd.h*k+20));
-  const x=cv.getContext('2d');x.fillStyle='#fbf7f0';x.fillRect(0,0,cv.width,cv.height);
-  const X=v=>10+v*k,Y=v=>10+v*k;
+  const W=900,k=(W-30)/Math.max(bd.w,bd.h,1);
+  cv.width=W;cv.height=Math.max(120,Math.round(bd.h*k+30));
+  const x=cv.getContext('2d');x.fillStyle='#f4ece1';x.fillRect(0,0,cv.width,cv.height);
+  x.fillStyle='#e2b98a';x.beginPath();x.roundRect?x.roundRect(15-4,15-4,bd.w*k+8,bd.h*k+8,14):x.rect(11,11,bd.w*k+8,bd.h*k+8);x.fill();
+  const X=v=>15+v*k,Y=v=>15+v*k;
   for(const o of ops){
     if(o.k==='run'){x.fillStyle='rgba(120,60,20,.9)';x.fillRect(X(Math.min(o.x0,o.x1)),Y(o.y)-0.5,Math.abs(o.x1-o.x0)*k,Math.max(1,o.iv*k));continue;}
     if(o.k==='fill'){x.fillStyle='rgba(150,80,30,'+(0.2+0.7*Math.min(1,o.pct/60))+')';x.fillRect(X(o.x),Y(o.y),o.w*k,o.h*k);continue;}

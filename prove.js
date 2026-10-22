@@ -88,15 +88,16 @@ function qrOps(str,x,y,mod,pct,F){
   const b=[...new TextEncoder().encode(str)],M=QR.make(b);
   return {ops:bitmapRuns(x,y,mod,mod/2,pct,F,M.length,(c,r)=>M[r][c],M.length),size:M.length*mod};
 }
-function textOps(str,x,y,hmm,pct,F,iv){   // scritta in corsivo/grassetto rasterizzata con il canvas del browser
+function textOps(str,x,y,hmm,pct,F,iv,wt){   // scritta in corsivo/grassetto rasterizzata con il canvas del browser
   const px=Math.round(hmm/iv),cv=document.createElement('canvas'),cx=cv.getContext('2d');
-  cx.font='bold '+px+'px Arial, Helvetica, sans-serif';
+  cx.font=(wt||'bold')+' '+px+'px Arial, Helvetica, sans-serif';
   const w=Math.max(1,Math.ceil(cx.measureText(str).width)+2);
   cv.width=w;cv.height=Math.ceil(px*1.25);
-  cx.font='bold '+px+'px Arial, Helvetica, sans-serif';cx.textBaseline='top';cx.fillStyle='#000';cx.fillText(str,1,0);
+  cx.font=(wt||'bold')+' '+px+'px Arial, Helvetica, sans-serif';cx.textBaseline='top';cx.fillStyle='#000';cx.fillText(str,1,0);
   const d=cx.getImageData(0,0,cv.width,cv.height).data;
   return {ops:bitmapRuns(x,y,iv,iv,pct,F,cv.height,(c,r)=>d[(r*cv.width+c)*4+3]>110,cv.width),w:w*iv,h:cv.height*iv};
 }
+function tmeasure(str,hmm,iv,wt){const px=Math.round(hmm/iv),cx=document.createElement('canvas').getContext('2d');cx.font=(wt||'bold')+' '+px+'px Arial, Helvetica, sans-serif';return (Math.ceil(cx.measureText(String(str)).width)+2)*iv;}
 
 /* ---------- modelli ---------- */
 const GL={nome:'',sp:'3'},UPDS=[];
@@ -112,89 +113,86 @@ const T=[
     const cs=nums(p.cs).slice(0,5),cp=nums(p.cp).slice(0,5),es=nums(p.es).slice(0,5),ep=nums(p.ep).slice(0,5);
     if(!cs.length||!cp.length||!es.length||!ep.length)return [];
     const nome=(GL.nome||'Materiale').trim(),sp=(GL.sp||'').trim(),t=+sp||3,qp=Math.min(100,+p.qp||30),F=2000,c=8,g=5,ops=[],cuts=[];
-    const t1=textOps(nome.toUpperCase(),4,3,5,qp,F,0.15);ops.push(...t1.ops);
-    const tsp=sp?textOps(sp+' mm',4,10.5,3.5,qp,F,0.15):null;if(tsp)ops.push(...tsp.ops);
+    const t1=textOps(nome,4,2.5,6,qp,F,0.15,'600');ops.push(...t1.ops);
+    const tsp=sp?textOps(sp+' mm',4,11.8,2.8,Math.min(qp,LAB+10),F,0.15,'600'):null;if(tsp)ops.push(...tsp.ops);
     const dd=new Date(),ds=String(dd.getDate()).padStart(2,'0')+'/'+String(dd.getMonth()+1).padStart(2,'0')+'/'+String(dd.getFullYear()).slice(2);
-    ops.push(...textOps(ds,4+(tsp?tsp.w+5:0),10.5,3.5,Math.min(qp,LAB+8),F,0.15).ops);
-    const tit=(s,x,y)=>ops.push(...textOps(s,Math.max(4,x),y,2.8,Math.min(qp,LAB+10),F,0.15).ops);
+    ops.push(...textOps(ds,4+(tsp?tsp.w+5:0),11.8,2.8,Math.min(qp,LAB+8),F,0.15,'600').ops);
+    const tit=(s,x,y,h)=>ops.push(...textOps(s,Math.max(4,x),y,h||2.4,Math.min(qp,LAB+10),F,0.15,'600').ops);
+    const nl=(v,x,y,al)=>{const hh=2.4,w=tmeasure(v,hh,0.15,'500');ops.push(...textOps(String(v),al==='c'?x-w/2:al==='r'?x-w:x,y,hh,Math.min(qp,LAB+6),F,0.15,'500').ops);};
     const oy=26,hy=oy-6;
     const grid=(ox,S,P,eng)=>{
-      S.forEach((v,i)=>ops.push(...text(v,ox+i*(c+g)+(c-String(v).length*3)/2+0.6,hy,LAB)));
-      P.forEach((v,j)=>ops.push(...text(v,ox-3-String(v).length*3,oy+j*(c+g)+(c-3.6)/2,LAB)));
+      S.forEach((v,i)=>nl(v,ox+i*(c+g)+c/2,hy,'c'));
+      P.forEach((v,j)=>nl(v,ox-2.5,oy+j*(c+g)+(c-2.4)/2,'r'));
       P.forEach((pc,j)=>S.forEach((v,i)=>{
         const x=ox+i*(c+g),y=oy+j*(c+g);
         if(eng)ops.push({k:'fill',x,y,w:c,h:c,pct:Math.min(100,pc),F:v,iv:0.1});
-        else cuts.push({k:'cut',pts:rect(x,y,c,c),closed:true,pct:Math.min(100,pc),F:v,passes:1});
+        else cuts.push({k:'cut',pts:rrect(x,y,c,c,1.2),closed:true,pct:Math.min(100,pc),F:v,passes:1});
       }));
     };
     const ox1=16,ox2=ox1+cs.length*(c+g)+16;
     grid(ox1,cs,cp,false);grid(ox2,es,ep,true);
-    tit('TAGLIO',ox1-9,16);tit('INCISIONE',ox2-9,16);
+    tit('Taglio',ox1-9,16);tit('Incisione',ox2-9,16);
     const gb=oy+Math.max(cp.length,ep.length)*(c+g);
     const xq=ox2+es.length*(c+g)+6;
-    const hgs=nums(p.hg).filter(v=>v>=0.5&&v<=8).slice(0,4);
+    const hgs=nums(p.hg).filter(v=>v>=0.5&&v<=8).slice(0,3);
     const hp=hgs.length?hgs.map(v=>['R',v]).concat(['O','L','Z'].map(t=>[t,hgs[1]||hgs[0]])):[];
     const url='https://paleletribu.github.io/laserbrio/?m='+encodeURIComponent(nome)+(sp?'&s='+encodeURIComponent(sp):'')+'&g='+[cs,cp,es,ep].map(a=>a.join(',')).join('_')+'&p='+(+p.step||0.1)+(hp.length?'&h='+hp.map(a=>a[0]+a[1]).join(','):'');
     const q=qrOps(url,xq,4,0.8,qp,F);ops.push(...q.ops);
     // fuoco: 6 linee sotto il QR
     const yf=4+q.size+6,fp=Math.min(100,+p.fp||30),fs=+p.fs||1500;
-    for(let i=0;i<6;i++){ops.push({k:'line',pts:[[xq+6,yf+i*5],[xq+q.size,yf+i*5]],pct:fp,F:fs});ops.push(...text(i+1,xq,yf+i*5-1.8,LAB));}
+    for(let i=0;i<6;i++){ops.push({k:'line',pts:[[xq+6,yf+i*5],[xq+q.size,yf+i*5]],pct:fp,F:fs});nl(i+1,xq,yf+i*5-1.2,'l');}
     // riga 2: scala di grigi e fessure
     const y2=Math.max(gb+5,yf+6*5+1),a0=Math.max(1,+p.rmin||5),a1=Math.min(100,+p.rmax||50);
     for(let i=0;i<6;i++){
       const pc=Math.round(a0+(a1-a0)*i/5),x=4+i*11;
       ops.push({k:'fill',x,y:y2,w:8,h:14,pct:pc,F:+p.rs||2000,iv:0.1});
-      ops.push(...text(pc,x+(8-String(pc).length*3)/2+0.6,y2+16,LAB));
+      nl(pc,x+4,y2+16,'c');
     }
-    const co=E.cut(),sx=4+6*11+10;tit('GRIGI',4,y2-4);tit('INCASTRI',sx,y2-4);tit('FUOCO',xq,yf-4.5);const st=Math.max(0.02,+p.step||0.1);
+    const co=E.cut(),sx=4+6*11+10;tit('Grigi',4,y2-4.5);tit('Incastri',sx,y2-4.5);tit('Fuoco',xq,yf-4.5);const st=Math.max(0.02,+p.step||0.1);
     for(let i=0;i<7;i++){
-      const w=t+(i-3)*st,x=sx+i*9+(9-w)/2,lab=String(Math.round(w*10));
-      ops.push(...text(lab,sx+i*9+(9-lab.length*3)/2+0.6,y2+16,LAB));
-      cuts.push({k:'cut',pts:rect(x,y2,w,12),closed:true,pct:co.pct,F:co.F,passes:co.passes});
+      const w=t+(i-3)*st,x=sx+i*9+(9-w)/2,lab=String(Math.round(w*100)/100);
+      nl(lab,sx+i*9+4.5,y2+16,'c');
+      cuts.push({k:'cut',pts:rrect(x,y2,w,12,Math.min(1,w/2-0.1)),closed:true,pct:co.pct,F:co.F,passes:co.passes});
     }
-    // piegatura: 4 tipi di cerniera, in fila lungo il bordo della scheda (si staccano con il taglio del contorno)
-    let yh=y2+24,xh=0;
-    if(hp.length){
-      const y3=y2+32,pw=30,ph=26,hz=14,NAME={R:'RIGHE',O:'ONDE',L:'LUNGHE',Z:'ZIGZAG'};
-      tit('PIEGATURA (si staccano dal bordo)',4,y3-9);yh=y3+ph;
-      hp.forEach(([ty,pt],i)=>{
-        const x0=4+i*(pw+6),yc=y3+(ph-hz)/2;xh=x0+pw+4;
-        tit(NAME[ty]+' '+pt,x0,y3-4.2);
-        cuts.push({k:'cut',pts:[[x0,yh],[x0,y3],[x0+pw,y3],[x0+pw,yh]],closed:false,pct:co.pct,F:co.F,passes:co.passes});
-        const n=Math.max(2,Math.floor(hz/pt)+1);
-        for(let r=0;r<n;r++){
-          const y=yc+r*pt,odd=r%2;let iv=[];
-          if(ty==='L')iv=odd?[[3,10],[13,27]]:[[3,22]];
-          else for(let a=3+(odd?5:0);a<27;a+=10){const b=Math.min(a+8,27);if(b-a>1)iv.push([a,b]);}
-          iv.forEach(([a,b])=>{
-            let pts;
-            if(ty==='O'){pts=[];for(let x=a;x<=b+1e-6;x+=0.5)pts.push([x0+x,y+0.8*Math.sin((x-a)*2*Math.PI/5)]);}
-            else if(ty==='Z'){pts=[];let k=0;for(let x=a;x<b+1e-6;x+=2,k++)pts.push([x0+x,y+(k%2?0.8:-0.8)]);pts.push([x0+b,y]);}
-            else pts=[[x0+a,y],[x0+b,y]];
-            cuts.push({k:'cut',pts,closed:false,pct:co.pct,F:co.F,passes:co.passes});
-          });
+    // piegature: 6 pezzi staccabili, 3 per riga; a destra forme piccole, scritte e foro
+    const y3=y2+34,pw=40,ph=24,pcol=46,prow=ph+12,NAME={R:'Righe',O:'Onde',L:'Lenti',Z:'Zigzag'};
+    tit('Piegature',4,y3-5);
+    hp.forEach(([ty,pt],i)=>{
+      const x0=4+(i%3)*pcol,y0=y3+7+Math.floor(i/3)*prow;
+      tit(NAME[ty]+' · '+pt+' mm',x0,y0-5,2.1);
+      const n=Math.floor((ph-6)/pt)+1,yc=y0+(ph-(n-1)*pt)/2,iw=pw-8,Ls=ty==='L'?16:14,gp=ty==='L'?3:2.5,P=Ls+gp;
+      for(let r=0;r<n;r++){
+        const y=yc+r*pt;
+        for(let a=(r%2?-P/2:0);a<iw;a+=P){
+          const s0=Math.max(a,0),s1=Math.min(a+Ls,iw);if(s1-s0<(ty==='L'?6:2))continue;
+          const X=x0+4;let pts,closed=false;
+          if(ty==='O'){pts=[];for(let x=s0;x<=s1+1e-6;x+=0.5)pts.push([X+x,y+0.7*Math.sin((x-s0)*2*Math.PI/5)]);}
+          else if(ty==='Z'){pts=[];let k=0;for(let x=s0;x<s1-0.01;x+=2,k++)pts.push([X+x,y+(k%2?0.7:-0.7)]);pts.push([X+s1,y]);}
+          else if(ty==='L'){closed=true;const m=Math.max(6,Math.round((s1-s0)/0.7)),up=[],dn=[];for(let k=0;k<=m;k++){const x=s0+(s1-s0)*k/m,hh=0.75*Math.sin(Math.PI*k/m);up.push([X+x,y-hh]);dn.push([X+x,y+hh]);}pts=up.concat(dn.reverse());}
+          else pts=[[X+s0,y],[X+s1,y]];
+          cuts.push({k:'cut',pts,closed,pct:co.pct,F:co.F,passes:co.passes});
         }
-      });
-    }
-    // riga 4: forme piccole (cerchio, esagono, quadrato), scritte di varie altezze e foro per appenderla
-    const y4=yh+9,SZ=[1,2,3,4,5,6,8,10];let xs=6;
-    tit('FORME PICCOLE (mm)',4,y4-5);
+      }
+      cuts.push({k:'cut',pts:rrect(x0,y0,pw,ph,2),closed:true,pct:co.pct,F:co.F,passes:co.passes});
+    });
+    const xr=4+2*pcol+pw+10,SZ=[1,2,3,4,5,6,8,10],yS=y3+10;let xs=xr;
+    tit('Forme piccole (mm)',xr,y3-5);
     SZ.forEach(v=>{
-      ops.push(...text(v,xs+(v-String(v).length*3)/2+0.6,y4,LAB));
-      const cx=xs+v/2,r=v/2,pc=[];
-      for(let k=0;k<24;k++){const a=k*Math.PI/12;pc.push([cx+r*Math.cos(a),y4+7+r+r*Math.sin(a)]);}
-      const ph=[];for(let k=0;k<6;k++){const a=k*Math.PI/3;ph.push([cx+r*Math.cos(a),y4+7+13+r+r*Math.sin(a)]);}
+      nl(v,xs+v/2,y3+3,'c');
+      const cx=xs+v/2,r=v/2,pc=[],ph2=[];
+      for(let k=0;k<24;k++){const a=k*Math.PI/12;pc.push([cx+r*Math.cos(a),yS+r+r*Math.sin(a)]);}
+      for(let k=0;k<6;k++){const a=k*Math.PI/3;ph2.push([cx+r*Math.cos(a),yS+13+r+r*Math.sin(a)]);}
       cuts.push({k:'cut',pts:pc,closed:true,pct:co.pct,F:co.F,passes:co.passes});
-      cuts.push({k:'cut',pts:ph,closed:true,pct:co.pct,F:co.F,passes:co.passes});
-      cuts.push({k:'cut',pts:rect(xs,y4+7+26,v,v),closed:true,pct:co.pct,F:co.F,passes:co.passes});
+      cuts.push({k:'cut',pts:ph2,closed:true,pct:co.pct,F:co.F,passes:co.passes});
+      cuts.push({k:'cut',pts:rect(xs,yS+26,v,v),closed:true,pct:co.pct,F:co.F,passes:co.passes});
       xs+=v+4;
     });
-    const xt=xs+6;tit('SCRITTE (altezza in mm)',xt,y4-5);let yt=y4+1,xe=xt;
-    [1.5,2,2.5,3,3.5,4].forEach(hh=>{const tt=textOps('Prova '+hh+' mm',xt,yt,hh,qp,F,0.15);ops.push(...tt.ops);xe=Math.max(xe,xt+tt.w);yt+=hh+2.6;});
-    const hx=Math.max(xe+10,xt+58),hy2=y4+16;
+    const yT=yS+26+10+8;tit('Scritte (altezza in mm)',xr,yT-5);let yt=yT,xe=xr;
+    [1.5,2,2.5,3,3.5,4].forEach(hh=>{const tt=textOps('Prova '+hh,xr,yt,hh,qp,F,0.15,'600');ops.push(...tt.ops);xe=Math.max(xe,xr+tt.w);yt+=hh+2.6;});
+    const hx=xe+14,hy2=yT+8;
     cuts.push({k:'cut',pts:Array.from({length:24},(_,k)=>[hx+2.5*Math.cos(k*Math.PI/12),hy2+2.5*Math.sin(k*Math.PI/12)]),closed:true,pct:co.pct,F:co.F,passes:co.passes});
-    tit('FORO',hx-4,y4-5);
-    const W=Math.max(xq+q.size+4,sx+63+4,t1.w+8,xh,hx+8),H=Math.max(y2+24,yf+30+2,yh,y4+7+26+10+4);
+    tit('Foro',hx-4,hy2-9);
+    const W=Math.max(xq+q.size+4,sx+63+4,t1.w+8,xs+2,hx+9),H=Math.max(y2+24,yf+30+2,y3+7+2*prow-8,yt+2);
     const all=ops.concat(cuts);
     if(!/^n/i.test(String(p.cont).trim()))all.push({k:'cut',pts:rrect(0,0,W,H,4),closed:true,pct:co.pct,F:co.F,passes:co.passes});
     return all;}}
@@ -344,7 +342,7 @@ function picker(box,d,full){
   const root=document.createElement('div');root.className='pk';box.appendChild(root);
   const el=(tag,cls,html,par)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;(par||root).appendChild(e);return e;};
   const sv=document.createElement('button'),sum=document.createElement('span');
-  const NMn=x=>({R:'righe',O:'onde',L:'lunghe',Z:'zigzag'})[x.t];
+  const NMn=x=>({R:'righe',O:'onde',L:'lenti',Z:'zigzag'})[x.t];
   const upd=()=>{sum.innerHTML='<b>Hai scelto</b> — taglio: '+(selC?selC[0]+'% a '+selC[1]+' mm/min':'<i>niente</i>')+' · incisione: '+(selE?selE[0]+'% a '+selE[1]+' mm/min':'<i>niente</i>')+' · incastro: '+(selS?selS+' mm':'<i>niente</i>')+' · piegatura: '+(selH?NMn(selH)+' '+selH.v+' mm':'<i>niente</i>');sv.disabled=!(selC||selE||selS||selH);};
   const table=(par,S,P,pick,info)=>{
     const t=el('div','tb',null,par);t.style.gridTemplateColumns='46px repeat('+S.length+',1fr)';
@@ -396,12 +394,12 @@ function picker(box,d,full){
   el('details',null,'<summary>Come lo provo?</summary>Togli i pezzetti caduti dalle 7 fessure. Prendi un ritaglio dello stesso legno e infilalo <b>di costa</b> in ogni fessura, dalla più stretta alla più larga. Quella giusta lo tiene fermo ma lo lascia entrare con una piccola spinta: se entra da solo è troppo larga, se devi martellare è troppo stretta. Il numero è la larghezza della fessura in mm: è lo spessore vero del tuo legno, che spesso non è quello scritto sulla confezione.',s3);
   row(s3,[0,1,2,3,4,5,6].map(i=>{const w=Math.round((tk+(i-3)*stp)*100)/100;return [w.toFixed(2),i===3?'nominale':(i<3?'stretta':'larga'),w];}),w=>{selS=w;});
   // ---- 4 PIEGATURA ----
-  const NM={R:'Righe',O:'Onde',L:'Lunghe',Z:'Zigzag'},hl=String(d.h||'').split(',').map(t=>{const m=String(t).match(/^([ROLZ])?([\d.]+)$/);return m?{t:m[1]||'R',v:+m[2]}:null;}).filter(x=>x&&x.v>0);
+  const NM={R:'Righe',O:'Onde',L:'Lenti',Z:'Zigzag'},hl=String(d.h||'').split(',').map(t=>{const m=String(t).match(/^([ROLZ])?([\d.]+)$/);return m?{t:m[1]||'R',v:+m[2]}:null;}).filter(x=>x&&x.v>0);
   if(hl.length){
     const s4=el('div','st');
     el('div','sh','<span class="n">4</span><b>Piegatura</b>',s4);
     el('div','rule','Tocca il rettangolo che <strong>si piega di più</strong> senza spaccarsi né incrinarsi. Sono 4 tipi di righe: provali tutti.',s4);
-    el('details',null,'<summary>Come lo provo?</summary>I rettangoli sono lungo il bordo inferiore della scheda: si staccano da soli con il taglio del contorno. Piegali piano con le mani, con le righe parallele alla piega. Più le righe sono vicine più il legno si piega, ma si indebolisce. Righe = tratti corti sfalsati (il classico), Onde = tratti ondulati, Lunghe = tratti lunghi (molto morbido, più fragile), Zigzag = tratti a denti. Scegli il più morbido che regge senza rompersi. Il numero è la distanza tra le righe in mm.',s4);
+    el('details',null,'<summary>Come lo provo?</summary>I pezzi sono staccabili: si staccano da soli con il taglio. Piegali piano con le mani, con le righe parallele alla piega. Più le righe sono vicine più il legno si piega, ma si indebolisce. Righe = tratti corti sfalsati (il classico), Onde = tratti ondulati, Lenti = tagli a forma di lente (il classico delle cerniere, molto morbido), Zigzag = tratti a denti. Scegli il più morbido che regge senza rompersi. Il numero è la distanza tra le righe in mm.',s4);
     row(s4,hl.map(x=>[NM[x.t],x.v+' mm',x]),x=>{selH=x;});
   }
   // ---- riepilogo + salva ----

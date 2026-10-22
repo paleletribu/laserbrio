@@ -368,7 +368,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer>CxAdGeM_Fp · Mk 33</footer>
+<footer>CxAdGeM_Fp · Mk 34</footer>
 </main>
 
 <script>
@@ -1067,6 +1067,7 @@ function showMat(d){
   return box;
 }
 window.Lb.material=showMat;
+window.Lb.matSlot=()=>{const m=allMats().find(y=>y.id===$('matSel').value);return m&&m.slot?{name:m.name,slot:m.slot}:null;};
 window.Lb.saveMat=m=>{customMats.push(m);saveMats();fillMats(m.id);};
 (function(){
   let q;try{q=new URLSearchParams(location.search);}catch(e){return;}

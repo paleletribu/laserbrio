@@ -580,6 +580,22 @@ function transformSubs(list){
     let x=q[0]-cx,y=q[1]-cy;if(flip)x=-x;
     return [cx+x*c-y*sn,cy+x*sn+y*c];})}));
 }
+/* incastri: allarga/stringe le fessure rettangolari (larghe come lo spessore del disegno) fino allo spessore vero del legno */
+function fitSlots(paths,tNom,ratio){
+  const bb=p=>{let a=1e9,b=1e9,c=-1e9,d=-1e9;for(const q of p.pts){if(q[0]<a)a=q[0];if(q[0]>c)c=q[0];if(q[1]<b)b=q[1];if(q[1]>d)d=q[1];}return {a,b,c,d,w:c-a,h:d-b};};
+  const area=p=>{let s=0;for(let i=0;i<p.pts.length;i++){const u=p.pts[i],v=p.pts[(i+1)%p.pts.length];s+=u[0]*v[1]-v[0]*u[1];}return Math.abs(s)/2;};
+  const bx=paths.map(p=>p.closed&&p.pts.length>=4?bb(p):null);
+  let n=0;
+  paths.forEach((p,i)=>{
+    const b=bx[i];if(!b)return;
+    const mi=Math.min(b.w,b.h),ma=Math.max(b.w,b.h);
+    if(ma<mi*1.5||Math.abs(mi-tNom)>tNom*0.2||area(p)<0.9*b.w*b.h)return;
+    if(!bx.some((o,j)=>o&&j!==i&&o.a<b.a&&o.b<b.b&&o.c>b.c&&o.d>b.d))return;
+    const f=ratio,cx=(b.a+b.c)/2,cy=(b.b+b.d)/2;
+    p.pts=p.pts.map(q=>b.w<b.h?[cx+(q[0]-cx)*f,q[1]]:[q[0],cy+(q[1]-cy)*f]);n++;
+  });
+  return n;
+}
 function build(area){
   if(!P.svg)return {error:P.err||'Scegli uno zip o un file SVG con il pulsante qui sopra.'};
   const sc=(Number($('impScale').value)||100)/100,strip=$('impOut').checked;
@@ -608,6 +624,12 @@ function build(area){
   }
   // tutti i tratti, con Y girata (nel file la Y va verso il basso) e scala applicata
   let paths=list.map(s=>({pts:s.pts.map(q=>[(q[0]-bb.minx)*sc,(bb.maxy-q[1])*sc]),closed:s.closed}));
+  P.slotN=0;
+  if($('impFit2')&&$('impFit2').checked){
+    const tn=Number($('impTn').value)||0,tr=Number($('impTr').value)||0;
+    if(tn>0&&tr>0&&Math.abs(tn-tr)>0.001)P.slotN=fitSlots(paths,tn*sc,tr/tn);
+    const nt=$('impSlotNote');if(nt)nt.textContent=P.slotN?'Ho adattato '+P.slotN+' incastri da '+tn+' mm a '+tr+' mm.':(tn>0&&tr>0&&Math.abs(tn-tr)<=0.001?'Gli spessori sono uguali: niente da cambiare.':(tn>0&&tr>0?'Non ho trovato incastri larghi '+tn+' mm da adattare.':'Scrivi i due spessori.'));
+  }
   P.preW=P.baseW*sc;P.preH=P.baseH*sc;
   let cropped=false;
   if($('impCrop')&&$('impCrop').checked){
@@ -788,7 +810,7 @@ function syncDims(){
   if(document.activeElement!==h)h.value=Math.round(P.baseH*sc*10)/10;
 }
 function resetEdit(){
-  P.rot=0;P.flip=false;P.auto=true;const an=$('impAutoNote');if(an)an.hidden=true;const ob=$('impOrig'),fb=$('impFit');if(ob)ob.hidden=false;if(fb)fb.hidden=true;
+  P.rot=0;P.flip=false;P.auto=true;{const f2=$('impFit2');if(f2){f2.checked=false;$('impFitBox').hidden=true;$('impTn').value='';}}const an=$('impAutoNote');if(an)an.hidden=true;const ob=$('impOrig'),fb=$('impFit');if(ob)ob.hidden=false;if(fb)fb.hidden=true;
   for(const [id,v] of [['impCopies','1'],['impRot','0'],['impScale','100']]){const e=$(id);if(e)e.value=v;}
   const c=$('impCrop');if(c){c.checked=false;$('impCropBox').hidden=true;}
 }
@@ -801,6 +823,11 @@ function buildEditUi(){
    +'<div><label for="impH">Altezza (mm)</label><input type="number" id="impH" min="1" step="0.1"></div></div>'
    +'<p class="hint" id="impAutoNote" hidden style="margin-top:4px"><span></span><button class="btn" id="impOrig" style="padding:4px 10px">Vedi misura originale</button> <button class="btn" id="impFit" style="padding:4px 10px" hidden>Adatta al foglio</button></p>'
    +'<p class="hint" style="margin-top:4px">Cambia una misura e l\'altra si adatta (le proporzioni restano uguali).</p>'
+   +'<div style="margin-top:10px"><label class="chk"><input type="checkbox" id="impFit2"> Adatta gli incastri al mio legno (facoltativo)</label>'
+   +'<div id="impFitBox" hidden><div class="grid2"><div><label for="impTn">Spessore nel disegno (mm)</label><input type="number" id="impTn" step="0.1" min="0.5"></div>'
+   +'<div><label for="impTr">Spessore del mio legno (mm)</label><input type="number" id="impTr" step="0.01" min="0.5"></div></div>'
+   +'<div class="row" style="margin-top:6px"><button class="btn" id="impTrUse" hidden></button></div>'
+   +'<p class="hint" id="impSlotNote" style="margin-top:4px"></p><p class="hint">Cambia solo le fessure rettangolari larghe come lo spessore del disegno, dritte rispetto al foglio. Lo spessore vero lo trovi con la scheda di prova (passo "Incastri").</p></div></div>'
    +'<div class="row" style="margin-top:8px"><button class="btn" id="impRL">↺ 90°</button><button class="btn" id="impRR">↻ 90°</button><button class="btn" id="impFl">⇋ Specchia</button>'
    +'<label style="margin:0 0 0 6px">Angolo</label><input type="number" id="impRot" value="0" step="1" style="width:80px"> °</div>'
    +'<div class="grid2" style="margin-top:10px"><div><label for="impCopies">Quante copie</label><input type="number" id="impCopies" value="1" min="1" max="50" step="1"></div>'
@@ -817,6 +844,17 @@ function buildEditUi(){
   $('impFl').onclick=()=>{P.flip=!P.flip;redraw();};
   $('impRot').oninput=()=>{P.rot=Number($('impRot').value)||0;redraw();};
   $('impCopies').oninput=redraw;
+  $('impFit2').onchange=()=>{
+    $('impFitBox').hidden=!$('impFit2').checked;
+    if($('impFit2').checked){
+      if(!$('impTn').value){const m=String(P.name||'').match(/(\d+(?:[.,]\d+)?)\s*mm/i);$('impTn').value=m?m[1].replace(',','.'):3;}
+      const ms=window.Lb&&Lb.matSlot&&Lb.matSlot(),u=$('impTrUse');
+      if(ms){u.hidden=false;u.textContent='Usa quello di "'+ms.name+'": '+ms.slot+' mm';u.onclick=()=>{$('impTr').value=ms.slot;redraw();};if(!$('impTr').value)$('impTr').value=ms.slot;}
+      else u.hidden=true;
+    }
+    redraw();
+  };
+  $('impTn').oninput=redraw;$('impTr').oninput=redraw;
   $('impOrig').onclick=()=>{$('impScale').value=100;$('impOrig').hidden=true;$('impFit').hidden=false;redraw();};
   $('impFit').onclick=()=>{$('impScale').value=P.fitPct||100;$('impFit').hidden=true;$('impOrig').hidden=false;redraw();};
   $('impCrop').onchange=()=>{

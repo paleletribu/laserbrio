@@ -107,7 +107,7 @@ const T=[
   desc:'Un foglio solo da incidere su ogni nuovo legno e da conservare: nome, spessore e data, quadratini di taglio e di incisione, scala di grigi, fuoco, incastri e un QR. Dopo l\'incisione fotografa il foglio col QR: laserBrio ti guida a scegliere i valori giusti e li ricorda.',
   par:[['cs','Taglio: velocità (mm/min)','150,250,400'],['cp','Taglio: potenze (%)','70,85,100'],['es','Incisione: velocità (mm/min)','1500,2500,3500'],['ep','Incisione: potenze (%)','15,30,45'],
        ['rmin','Scala di grigi: da (%)','5'],['rmax','Scala di grigi: a (%)','50'],['rs','Scala di grigi: velocità','2000'],['fp','Fuoco: potenza (%)','30'],['fs','Fuoco: velocità','1500'],['step','Incastro: passo delle fessure (mm)','0.1'],
-       ['qp','Potenza di scritte e QR (%)','30'],['cont','Taglia il contorno (si/no)','si']],
+       ['qp','Potenza di scritte e QR (%)','30'],['hg','Piegatura: distanza tra le righe (mm)','1.5,2,3'],['cont','Taglia il contorno (si/no)','si']],
   gen(p,E){
     const cs=nums(p.cs).slice(0,5),cp=nums(p.cp).slice(0,5),es=nums(p.es).slice(0,5),ep=nums(p.ep).slice(0,5);
     if(!cs.length||!cp.length||!es.length||!ep.length)return [];
@@ -132,11 +132,12 @@ const T=[
     tit('TAGLIO',ox1-9,16);tit('INCISIONE',ox2-9,16);
     const gb=oy+Math.max(cp.length,ep.length)*(c+g);
     const xq=ox2+es.length*(c+g)+6;
-    const url='https://paleletribu.github.io/laserbrio/?m='+encodeURIComponent(nome)+(sp?'&s='+encodeURIComponent(sp):'')+'&g='+[cs,cp,es,ep].map(a=>a.join(',')).join('_');
+    const hgs=nums(p.hg).filter(v=>v>=0.5&&v<=8).slice(0,4);
+    const url='https://paleletribu.github.io/laserbrio/?m='+encodeURIComponent(nome)+(sp?'&s='+encodeURIComponent(sp):'')+'&g='+[cs,cp,es,ep].map(a=>a.join(',')).join('_')+'&p='+(+p.step||0.1)+(hgs.length?'&h='+hgs.join(','):'');
     const q=qrOps(url,xq,4,0.8,qp,F);ops.push(...q.ops);
     // fuoco: 6 linee sotto il QR
     const yf=4+q.size+6,fp=Math.min(100,+p.fp||30),fs=+p.fs||1500;
-    for(let i=0;i<6;i++){ops.push({k:'line',pts:[[xq+6,yf+i*4],[xq+q.size,yf+i*4]],pct:fp,F:fs});ops.push(...text(i+1,xq,yf+i*4-1.8,LAB));}
+    for(let i=0;i<6;i++){ops.push({k:'line',pts:[[xq+6,yf+i*5],[xq+q.size,yf+i*5]],pct:fp,F:fs});ops.push(...text(i+1,xq,yf+i*5-1.8,LAB));}
     // riga 2: scala di grigi e fessure
     const y2=gb+5,a0=Math.max(1,+p.rmin||5),a1=Math.min(100,+p.rmax||50);
     for(let i=0;i<6;i++){
@@ -150,7 +151,23 @@ const T=[
       ops.push(...text(lab,sx+i*9+(9-lab.length*3)/2+0.6,y2+16,LAB));
       cuts.push({k:'cut',pts:rect(x,y2,w,12),closed:true,pct:co.pct,F:co.F,passes:co.passes});
     }
-    const W=Math.max(xq+q.size+4,sx+63+4,t1.w+8),H=Math.max(y2+24,yf+24+2);
+    // piegatura: righe di taglio sfalsate (cerniera); più vicine sono le righe, più il legno si piega
+    let yh=y2+24;
+    if(hgs.length){
+      const y3=y2+28,pw=30,ph=26,hz=14;tit('PIEGATURA',4,y3-4.5);yh=y3+ph+7;
+      hgs.forEach((pt,i)=>{
+        const x0=4+i*(pw+6),yc=y3+(ph-hz)/2;
+        cuts.push({k:'cut',pts:rect(x0,y3,pw,ph),closed:true,pct:co.pct,F:co.F,passes:co.passes});
+        const n=Math.max(2,Math.floor(hz/pt)+1);
+        for(let r=0;r<n;r++){
+          const y=yc+r*pt;let xs=x0+3+(r%2?5:0);
+          for(let a=xs;a<x0+pw-3;a+=10){const b=Math.min(a+8,x0+pw-3);if(b-a>1)cuts.push({k:'cut',pts:[[a,y],[b,y]],closed:false,pct:co.pct,F:co.F,passes:co.passes});}
+        }
+        const lab=String(Math.round(pt*10));
+        ops.push(...text(lab,x0+(pw-lab.length*3)/2+0.6,y3+ph+2,LAB));
+      });
+    }
+    const W=Math.max(xq+q.size+4,sx+63+4,t1.w+8,hgs.length?4+hgs.length*36:0),H=Math.max(y2+24,yf+30+2,yh);
     const all=ops.concat(cuts);
     if(!/^n/i.test(String(p.cont).trim()))all.push({k:'cut',pts:rrect(0,0,W,H,4),closed:true,pct:co.pct,F:co.F,passes:co.passes});
     return all;}}
@@ -295,12 +312,12 @@ function pkCss(){
 function picker(box,d,full){
   const G=parseG(d.g);if(G.length<4||G.some(a=>!a.length))return;
   pkCss();
-  const [cs,cp,es,ep]=G;let selC=null,selE=null;
+  const [cs,cp,es,ep]=G;let selC=null,selE=null,selS=null,selH=null;
   const A=Array.isArray(d.a)&&d.a.length===ep.length&&d.a.every(r=>Array.isArray(r)&&r.length===es.length)?d.a:null;
   const root=document.createElement('div');root.className='pk';box.appendChild(root);
   const el=(tag,cls,html,par)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;(par||root).appendChild(e);return e;};
   const sv=document.createElement('button'),sum=document.createElement('span');
-  const upd=()=>{sum.innerHTML='<b>Hai scelto</b> — taglio: '+(selC?selC[0]+'% a '+selC[1]+' mm/min':'<i>niente</i>')+' · incisione: '+(selE?selE[0]+'% a '+selE[1]+' mm/min':'<i>niente</i>');sv.disabled=!(selC||selE);};
+  const upd=()=>{sum.innerHTML='<b>Hai scelto</b> — taglio: '+(selC?selC[0]+'% a '+selC[1]+' mm/min':'<i>niente</i>')+' · incisione: '+(selE?selE[0]+'% a '+selE[1]+' mm/min':'<i>niente</i>')+' · incastro: '+(selS?selS+' mm':'<i>niente</i>')+' · piegatura: '+(selH?'righe ogni '+selH+' mm':'<i>niente</i>');sv.disabled=!(selC||selE||selS||selH);};
   const table=(par,S,P,pick,info)=>{
     const t=el('div','tb',null,par);t.style.gridTemplateColumns='46px repeat('+S.length+',1fr)';
     el('div','th','',t);S.forEach(v=>el('div','th',v+'<br>mm/min',t));
@@ -324,7 +341,7 @@ function picker(box,d,full){
   const h1=el('div','sh','<span class="n">1</span><b>Taglio</b>',s1);
   el('div','rule','Tocca il quadratino <strong>più veloce</strong> che si è <strong>staccato del tutto</strong>.',s1);
   el('details',null,'<summary>Come lo controllo?</summary>Spingi con un dito ogni quadratino: deve cadere da solo, senza forzare. Tra quelli che cadono scegli la velocità più alta; a parità di velocità, la potenza più bassa. Se nessuno cade, il taglio è troppo debole: rifai la scheda con velocità più bassa. Dalla foto non si può capire se il taglio è passato, quindi qui scegli tu.',s1);
-  table(s1,cs,cp,(pc,v)=>{selC=[pc,v];},()=>({txt:'✂',sub:'staccato'}));
+  table(s1,cs,cp,(pc,v)=>{selC=[pc,v];},()=>({txt:'✂'}));
   // ---- 2 INCISIONE ----
   const s2=el('div','st');
   el('div','sh','<span class="n">2</span><b>Incisione</b>',s2);
@@ -342,6 +359,23 @@ function picker(box,d,full){
   const mix=x=>{const a=[222,176,128],b=[40,22,12],c=a.map((v,k)=>Math.round(v+(b[k]-v)*x));return 'rgb('+c+')';};
   const eb=table(s2,es,ep,(pc,v)=>{selE=[pc,v];},A?(j,i)=>({bg:mix(A[j][i]),fg:A[j][i]>0.45?'#fff':'#2b2118',txt:Math.round(A[j][i]*100)+'%',sub:'scuro',star:!!(sug&&sug.j===j&&sug.i===i)}):()=>({}));
   if(sug){const b=eb.find(x=>x._j===sug.j&&x._i===sug.i);if(b){selE=[ep[sug.j],es[sug.i]];b.classList.add('on');}}
+  // ---- 3 INCASTRI ----
+  const tk=+String(d.s||'').replace(',','.')||3,stp=+d.p||0.1;
+  const row=(par,items,pick)=>{const t=el('div','tb',null,par);t.style.gridTemplateColumns='repeat('+items.length+',1fr)';const cs2=[];items.forEach(it=>{const b=el('button','cell','<b>'+it[0]+'</b><small>'+it[1]+'</small>',t);b.onclick=()=>{pick(it[2]);cs2.forEach(x=>x.classList.remove('on'));b.classList.add('on');upd();};cs2.push(b);});return cs2;};
+  const s3=el('div','st');
+  el('div','sh','<span class="n">3</span><b>Incastri</b>',s3);
+  el('div','rule','Tocca la fessura in cui il legno <strong>entra a pressione con le dita</strong>, senza gioco e senza forzare.',s3);
+  el('details',null,'<summary>Come lo provo?</summary>Togli i pezzetti caduti dalle 7 fessure. Prendi un ritaglio dello stesso legno e infilalo <b>di costa</b> in ogni fessura, dalla più stretta alla più larga. Quella giusta lo tiene fermo ma lo lascia entrare con una piccola spinta: se entra da solo è troppo larga, se devi martellare è troppo stretta. Il numero è la larghezza della fessura in mm: è lo spessore vero del tuo legno, che spesso non è quello scritto sulla confezione.',s3);
+  row(s3,[0,1,2,3,4,5,6].map(i=>{const w=Math.round((tk+(i-3)*stp)*100)/100;return [w.toFixed(2),i===3?'nominale':(i<3?'stretta':'larga'),w];}),w=>{selS=w;});
+  // ---- 4 PIEGATURA ----
+  const hl=String(d.h||'').split(',').map(Number).filter(v=>v>0);
+  if(hl.length){
+    const s4=el('div','st');
+    el('div','sh','<span class="n">4</span><b>Piegatura</b>',s4);
+    el('div','rule','Tocca il rettangolo che <strong>si piega di più</strong> senza spaccarsi né incrinarsi.',s4);
+    el('details',null,'<summary>Come lo provo?</summary>Stacca i rettangoli dalla scheda e piegali piano con le mani, con le righe di taglio parallele alla piega. Più le righe sono vicine più il legno si piega, ma si indebolisce. Scegli il più morbido che regge senza rompersi. Il numero è la distanza tra le righe in mm.',s4);
+    row(s4,hl.map(v=>[v+' mm','righe',v]),v=>{selH=v;});
+  }
   // ---- riepilogo + salva ----
   const fin=el('div','sum');fin.appendChild(sum);
   sv.className='btn primary';sv.textContent='Salva questo materiale';fin.appendChild(sv);
@@ -351,8 +385,9 @@ function picker(box,d,full){
     const m={id:'c_'+Date.now(),name:full,minP:8,maxP:65,speed:2500};
     if(selE){m.maxP=selE[0];m.minP=Math.max(1,Math.round(selE[0]*0.15));m.speed=selE[1];}
     if(selC)m.cut={speed:selC[1],passes:1,power:selC[0]};
+    if(selS)m.slot=selS;if(selH)m.hinge=selH;
     window.Lb.saveMat(m);sv.disabled=true;
-    st.textContent='Salvato: '+full+(selC?' · taglio '+selC[0]+'% a '+selC[1]:'')+(selE?' · incisione fino al '+selE[0]+'% a '+selE[1]:'')+'. Ora lo trovi nell\'elenco dei materiali.';
+    st.textContent='Salvato: '+full+(selC?' · taglio '+selC[0]+'% a '+selC[1]:'')+(selE?' · incisione fino al '+selE[0]+'% a '+selE[1]:'')+(selS?' · incastro '+selS+' mm':'')+(selH?' · piegatura '+selH+' mm':'')+'. Ora lo trovi nell\'elenco dei materiali.';
   };
 }
 let jsq=null;
@@ -423,7 +458,7 @@ async function readScheda(src,msgEl){
   if(!q||!q.get('m')){msgEl.style.color='var(--bad)';msgEl.textContent='Questo QR non è di una scheda laserBrio.';return;}
   $('pvOv').hidden=true;document.body.style.overflow='';
   const G=q.get('g')?parseG(q.get('g')):[],an=(G.length>=4&&G.every(a=>a.length))?analyse(src,sc,G):null;
-  window.Lb.material({m:q.get('m'),s:q.get('s'),g:q.get('g'),c:q.get('c'),i:q.get('i'),a:an&&an.dark,ov:an&&an.ov});
+  window.Lb.material({m:q.get('m'),s:q.get('s'),g:q.get('g'),c:q.get('c'),i:q.get('i'),a:an&&an.dark,ov:an&&an.ov,p:q.get('p'),h:q.get('h')});
 }
 function fromFile(f,msgEl){
   const img=new Image(),u=URL.createObjectURL(f);

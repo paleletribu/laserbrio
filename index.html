@@ -368,7 +368,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer>CxAdGeM_Fp · Mk 32</footer>
+<footer>CxAdGeM_Fp · Mk 33</footer>
 </main>
 
 <script>
@@ -1070,7 +1070,7 @@ window.Lb.material=showMat;
 window.Lb.saveMat=m=>{customMats.push(m);saveMats();fillMats(m.id);};
 (function(){
   let q;try{q=new URLSearchParams(location.search);}catch(e){return;}
-  const d={m:q.get('m'),s:q.get('s'),c:q.get('c'),i:q.get('i'),g:q.get('g')};
+  const d={m:q.get('m'),s:q.get('s'),c:q.get('c'),i:q.get('i'),g:q.get('g'),p:q.get('p'),h:q.get('h')};
   if(!d.m||q.get('tel'))return;
   const box=showMat(d);
   if(document.body.classList.contains('telmode'))return;

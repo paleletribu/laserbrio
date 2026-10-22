@@ -154,31 +154,11 @@ const T=[
       nl(lab,sx+i*9+4.5,y2+16,'c');
       cuts.push({k:'cut',pts:rrect(x,y2,w,12,Math.min(1,w/2-0.1)),closed:true,pct:co.pct,F:co.F,passes:co.passes});
     }
-    // piegature: 6 pezzi staccabili, 3 per riga; a destra forme piccole, scritte e foro
-    const y3=y2+34,pw=40,ph=24,pcol=46,prow=ph+12,NAME={R:'Righe',O:'Onde',L:'Lenti',Z:'Zigzag'};
-    tit('Piegature',4,y3-5);
-    hp.forEach(([ty,pt],i)=>{
-      const x0=4+(i%3)*pcol,y0=y3+7+Math.floor(i/3)*prow;
-      tit(NAME[ty]+' · '+pt+' mm',x0,y0-5,2.1);
-      const n=Math.floor((ph-6)/pt)+1,yc=y0+(ph-(n-1)*pt)/2,iw=pw-8,Ls=ty==='L'?16:14,gp=ty==='L'?3:2.5,P=Ls+gp;
-      for(let r=0;r<n;r++){
-        const y=yc+r*pt;
-        for(let a=(r%2?-P/2:0);a<iw;a+=P){
-          const s0=Math.max(a,0),s1=Math.min(a+Ls,iw);if(s1-s0<(ty==='L'?6:2))continue;
-          const X=x0+4;let pts,closed=false;
-          if(ty==='O'){pts=[];for(let x=s0;x<=s1+1e-6;x+=0.5)pts.push([X+x,y+0.7*Math.sin((x-s0)*2*Math.PI/5)]);}
-          else if(ty==='Z'){pts=[];let k=0;for(let x=s0;x<s1-0.01;x+=2,k++)pts.push([X+x,y+(k%2?0.7:-0.7)]);pts.push([X+s1,y]);}
-          else if(ty==='L'){closed=true;const m=Math.max(6,Math.round((s1-s0)/0.7)),up=[],dn=[];for(let k=0;k<=m;k++){const x=s0+(s1-s0)*k/m,hh=0.75*Math.sin(Math.PI*k/m);up.push([X+x,y-hh]);dn.push([X+x,y+hh]);}pts=up.concat(dn.reverse());}
-          else pts=[[X+s0,y],[X+s1,y]];
-          cuts.push({k:'cut',pts,closed,pct:co.pct,F:co.F,passes:co.passes});
-        }
-      }
-      cuts.push({k:'cut',pts:rrect(x0,y0,pw,ph,2),closed:true,pct:co.pct,F:co.F,passes:co.passes});
-    });
-    const xr=4+2*pcol+pw+10,SZ=[1,2,3,4,5,6,8,10],yS=y3+10;let xs=xr;
-    tit('Forme piccole (mm)',xr,y3-5);
+    // colonna a destra: forme piccole e scritte (riempie lo spazio accanto al QR)
+    const xr=Math.max(xq+q.size,sx+63)+8,SZ=[1,2,3,4,5,6,8,10],yS=17;let xs=xr;
+    tit('Forme piccole (mm)',xr,4);
     SZ.forEach(v=>{
-      nl(v,xs+v/2,y3+3,'c');
+      nl(v,xs+v/2,10.5,'c');
       const cx=xs+v/2,r=v/2,pc=[],ph2=[];
       for(let k=0;k<24;k++){const a=k*Math.PI/12;pc.push([cx+r*Math.cos(a),yS+r+r*Math.sin(a)]);}
       for(let k=0;k<6;k++){const a=k*Math.PI/3;ph2.push([cx+r*Math.cos(a),yS+13+r+r*Math.sin(a)]);}
@@ -187,12 +167,30 @@ const T=[
       cuts.push({k:'cut',pts:rect(xs,yS+26,v,v),closed:true,pct:co.pct,F:co.F,passes:co.passes});
       xs+=v+4;
     });
-    const yT=yS+26+10+8;tit('Scritte (altezza in mm)',xr,yT-5);let yt=yT,xe=xr;
-    [1.5,2,2.5,3,3.5,4].forEach(hh=>{const tt=textOps('Prova '+hh,xr,yt,hh,qp,F,0.15,'600');ops.push(...tt.ops);xe=Math.max(xe,xr+tt.w);yt+=hh+2.6;});
-    const hx=xe+14,hy2=yT+8;
-    cuts.push({k:'cut',pts:Array.from({length:24},(_,k)=>[hx+2.5*Math.cos(k*Math.PI/12),hy2+2.5*Math.sin(k*Math.PI/12)]),closed:true,pct:co.pct,F:co.F,passes:co.passes});
-    tit('Foro',hx-4,hy2-9);
-    const W=Math.max(xq+q.size+4,sx+63+4,t1.w+8,xs+2,hx+9),H=Math.max(y2+24,yf+30+2,y3+7+2*prow-8,yt+2);
+    const yT=yS+26+10+10;tit('Scritte (altezza in mm)',xr,yT-5);let yt=yT;
+    [1.5,2,2.5,3,3.5,4].forEach(hh=>{ops.push(...textOps('Prova '+hh,xr,yt,hh,qp,F,0.15,'600').ops);yt+=hh+2.6;});
+    // piegature: 6 linguette attaccate al foglio (tagliate su 3 lati), con le righe che arrivano quasi ai bordi
+    const NAME={R:'Righe',O:'Onde',L:'Lenti',Z:'Zigzag'},W0=Math.max(xs,xq+q.size+4),y3=Math.max(y2+30,yt+4),th=40,pcol=(W0-4)/6,pw=pcol-4;
+    tit('Piegature (piega le linguette piano con le mani)',4,y3-5);
+    hp.forEach(([ty,pt],i)=>{
+      const x0=4+i*pcol,y0=y3+7,by=y0+8,bh=th-8-10;
+      tit(NAME[ty]+' · '+pt+' mm',x0,y0-4.6,2.1);
+      const n=Math.floor(bh/pt)+1,yc=by+(bh-(n-1)*pt)/2,iw=pw-3,Ls=ty==='L'?16:14,gp=ty==='L'?3:2.5,P=Ls+gp,X=x0+1.5;
+      for(let r=0;r<n;r++){
+        const y=yc+r*pt;
+        for(let a=(r%2?-P/2:0);a<iw;a+=P){
+          const s0=Math.max(a,0),s1=Math.min(a+Ls,iw);if(s1-s0<(ty==='L'?6:2))continue;
+          let pts,closed=false;
+          if(ty==='O'){pts=[];for(let x=s0;x<=s1+1e-6;x+=0.5)pts.push([X+x,y+0.7*Math.sin((x-s0)*2*Math.PI/5)]);}
+          else if(ty==='Z'){pts=[];let k=0;for(let x=s0;x<s1-0.01;x+=2,k++)pts.push([X+x,y+(k%2?0.7:-0.7)]);pts.push([X+s1,y]);}
+          else if(ty==='L'){closed=true;const m=Math.max(6,Math.round((s1-s0)/0.7)),up=[],dn=[];for(let k=0;k<=m;k++){const x=s0+(s1-s0)*k/m,hh=0.75*Math.sin(Math.PI*k/m);up.push([X+x,y-hh]);dn.push([X+x,y+hh]);}pts=up.concat(dn.reverse());}
+          else pts=[[X+s0,y],[X+s1,y]];
+          cuts.push({k:'cut',pts,closed,pct:co.pct,F:co.F,passes:co.passes});
+        }
+      }
+      cuts.push({k:'cut',pts:[[x0,y0],[x0,y0+th],[x0+pw,y0+th],[x0+pw,y0]],closed:false,pct:co.pct,F:co.F,passes:co.passes});
+    });
+    const W=Math.max(xq+q.size+4,sx+63+4,t1.w+8,W0+2),H=Math.max(y2+24,yf+30+2,y3+7+th+6,yt+2);
     const all=ops.concat(cuts);
     if(!/^n/i.test(String(p.cont).trim()))all.push({k:'cut',pts:rrect(0,0,W,H,4),closed:true,pct:co.pct,F:co.F,passes:co.passes});
     return all;}}
@@ -399,7 +397,7 @@ function picker(box,d,full){
     const s4=el('div','st');
     el('div','sh','<span class="n">4</span><b>Piegatura</b>',s4);
     el('div','rule','Tocca il rettangolo che <strong>si piega di più</strong> senza spaccarsi né incrinarsi. Sono 4 tipi di righe: provali tutti.',s4);
-    el('details',null,'<summary>Come lo provo?</summary>I pezzi sono staccabili: si staccano da soli con il taglio. Piegali piano con le mani, con le righe parallele alla piega. Più le righe sono vicine più il legno si piega, ma si indebolisce. Righe = tratti corti sfalsati (il classico), Onde = tratti ondulati, Lenti = tagli a forma di lente (il classico delle cerniere, molto morbido), Zigzag = tratti a denti. Scegli il più morbido che regge senza rompersi. Il numero è la distanza tra le righe in mm.',s4);
+    el('details',null,'<summary>Come lo provo?</summary>Ogni linguetta resta attaccata al foglio: piegala piano con le mani e guarda come regge. Più le righe sono vicine più il legno si piega, ma si indebolisce. Righe = tratti corti sfalsati (il classico), Onde = tratti ondulati, Lenti = tagli a forma di lente (il classico delle cerniere, molto morbido), Zigzag = tratti a denti. Scegli il più morbido che regge senza rompersi. Il numero è la distanza tra le righe in mm.',s4);
     row(s4,hl.map(x=>[NM[x.t],x.v+' mm',x]),x=>{selH=x;});
   }
   // ---- riepilogo + salva ----

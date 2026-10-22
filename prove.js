@@ -259,47 +259,88 @@ function card(parent,tp,E){
 }
 
 /* ---------- scegli i quadratini migliori: laserBrio si ricorda i valori ---------- */
+function pkCss(){
+  if($('pkCss'))return;
+  const s=document.createElement('style');s.id='pkCss';
+  s.textContent=`.pk{margin-top:14px;display:grid;gap:14px}
+.pk .st{border:1px solid var(--line);border-radius:14px;padding:14px;background:#fffdfa}
+.pk .sh{display:flex;gap:10px;align-items:center}
+.pk .sh .n{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;font-weight:700;flex:none}
+.pk .sh b{font-size:17px}
+.pk .rule{margin:10px 0 4px;padding:10px 12px;border-radius:10px;background:var(--soft);font-size:15px;line-height:1.4}
+.pk .rule strong{color:var(--accent-d)}
+.pk details{margin:6px 0 2px;font-size:14px;color:var(--mute)}
+.pk summary{cursor:pointer;color:var(--accent-d);font-weight:600}
+.pk .tb{display:grid;gap:5px;margin-top:10px;max-width:460px}
+.pk .th{font-size:12px;color:var(--mute);text-align:center;align-self:end;padding-bottom:2px}
+.pk .tl{font-size:13px;color:var(--ink);font-weight:600;align-self:center;text-align:right;padding-right:4px}
+.pk .cell{position:relative;border:2px solid transparent;border-radius:10px;min-height:54px;font:600 14px system-ui,sans-serif;cursor:pointer;background:#efe6d9;color:var(--ink);padding:4px}
+.pk .cell small{display:block;font-weight:500;font-size:11px;opacity:.85}
+.pk .cell.on{border-color:var(--accent);box-shadow:0 0 0 3px rgba(196,86,26,.28)}
+.pk .cell .star{position:absolute;top:-8px;right:-6px;background:var(--accent);color:#fff;border-radius:10px;font-size:11px;padding:1px 6px}
+.pk .ax{font-size:12px;color:var(--mute);margin-top:6px}
+.pk img{width:100%;max-width:460px;border-radius:10px;border:1px solid var(--line);display:block;margin:10px 0 4px}
+.pk .lg{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mute)}
+.pk .lg i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:4px}
+.pk .sum{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--accent);border-radius:14px;padding:12px 14px;background:#fff5ec}
+.pk .sum span{flex:1;min-width:180px;font-size:14px}`;
+  document.head.appendChild(s);
+}
 function picker(box,d,full){
   const G=parseG(d.g);if(G.length<4||G.some(a=>!a.length))return;
+  pkCss();
   const [cs,cp,es,ep]=G;let selC=null,selE=null;
   const A=Array.isArray(d.a)&&d.a.length===ep.length&&d.a.every(r=>Array.isArray(r)&&r.length===es.length)?d.a:null;
-  const wrap=document.createElement('div');wrap.style.marginTop='8px';box.appendChild(wrap);
-  const sv=document.createElement('button');
-  const say=(t,b)=>{const h=document.createElement('p');h.className='hint';if(b)h.innerHTML=t;else h.textContent=t;wrap.appendChild(h);return h;};
-  const grid=(S,P,pick,lab)=>{
-    const t=document.createElement('div');t.style.cssText='display:grid;grid-template-columns:repeat('+S.length+',1fr);gap:6px;max-width:440px;margin:6px 0';
-    const btns=[];
-    P.forEach((pc,j)=>S.forEach((v,i)=>{
-      const b=document.createElement('button');b.className='btn';b.style.cssText='padding:8px 2px;font-size:13px;line-height:1.25';
-      b.innerHTML=pc+'% · '+v+(lab?'<br><small>'+lab(j,i)+'</small>':'');
-      b.onclick=()=>{pick(pc,v);btns.forEach(x=>x.classList.remove('on'));b.classList.add('on');sv.disabled=false;};
-      t.appendChild(b);btns.push(b);b._j=j;b._i=i;
-    }));
-    wrap.appendChild(t);return btns;
+  const root=document.createElement('div');root.className='pk';box.appendChild(root);
+  const el=(tag,cls,html,par)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;(par||root).appendChild(e);return e;};
+  const sv=document.createElement('button'),sum=document.createElement('span');
+  const upd=()=>{sum.innerHTML='<b>Hai scelto</b> — taglio: '+(selC?selC[0]+'% a '+selC[1]+' mm/min':'<i>niente</i>')+' · incisione: '+(selE?selE[0]+'% a '+selE[1]+' mm/min':'<i>niente</i>');sv.disabled=!(selC||selE);};
+  const table=(par,S,P,pick,info)=>{
+    const t=el('div','tb',null,par);t.style.gridTemplateColumns='46px repeat('+S.length+',1fr)';
+    el('div','th','',t);S.forEach(v=>el('div','th',v+'<br>mm/min',t));
+    const cells=[];
+    P.forEach((pc,j)=>{
+      el('div','tl',pc+'%',t);
+      S.forEach((v,i)=>{
+        const inf=info?info(j,i):{};
+        const b=el('button','cell',(inf.txt||'')+(inf.sub?'<small>'+inf.sub+'</small>':''),t);
+        if(inf.bg){b.style.background=inf.bg;b.style.color=inf.fg;}
+        if(inf.star)el('span','star','★ consigliato',b);
+        b.onclick=()=>{pick(pc,v);cells.forEach(x=>x.classList.remove('on'));b.classList.add('on');upd();};
+        b._j=j;b._i=i;cells.push(b);
+      });
+    });
+    el('div','ax','Sopra: velocità · a sinistra: potenza',par);
+    return cells;
   };
-  // ---- TAGLIO ----
-  say('1) TAGLIO — scegli il quadratino PIÙ VELOCE che si è staccato del tutto.',false).style.fontWeight='700';
-  say('Come si fa: spingi con un dito ogni quadratino. Deve cadere da solo, senza forzare. Tra quelli che cadono scegli quello con la velocità più alta (se hanno la stessa velocità, quello con meno potenza). Se nessuno cade, il taglio è troppo debole: rifai la scheda con velocità più bassa. Le etichette sono potenza % · velocità mm/min.',false);
-  say('Dalla foto non si capisce se il taglio è passato: questa scelta tocca a te.',false);
-  grid(cs,cp,(pc,v)=>{selC=[pc,v];});
-  // ---- INCISIONE ----
-  say('2) INCISIONE — scegli il quadrato PIÙ SCURO che è ancora pulito.',false).style.fontWeight='700';
-  say('Pulito vuol dire: tono uniforme, niente bordi neri carbonizzati, niente macchie di fumo né fiammate intorno. Non sempre il più scuro è il migliore: oltre un certo punto brucia soltanto. Se due sembrano uguali, prendi quello con meno potenza.',false);
+  // ---- 1 TAGLIO ----
+  const s1=el('div','st');
+  const h1=el('div','sh','<span class="n">1</span><b>Taglio</b>',s1);
+  el('div','rule','Tocca il quadratino <strong>più veloce</strong> che si è <strong>staccato del tutto</strong>.',s1);
+  el('details',null,'<summary>Come lo controllo?</summary>Spingi con un dito ogni quadratino: deve cadere da solo, senza forzare. Tra quelli che cadono scegli la velocità più alta; a parità di velocità, la potenza più bassa. Se nessuno cade, il taglio è troppo debole: rifai la scheda con velocità più bassa. Dalla foto non si può capire se il taglio è passato, quindi qui scegli tu.',s1);
+  table(s1,cs,cp,(pc,v)=>{selC=[pc,v];},()=>({txt:'✂',sub:'staccato'}));
+  // ---- 2 INCISIONE ----
+  const s2=el('div','st');
+  el('div','sh','<span class="n">2</span><b>Incisione</b>',s2);
+  el('div','rule','Tocca il quadrato <strong>più scuro</strong> che è <strong>ancora pulito</strong>: tono uniforme, senza bordi neri bruciati né fumo.',s2);
+  el('details',null,'<summary>Perché non sempre il più scuro?</summary>Oltre un certo punto più potenza non scurisce, brucia soltanto: bordi carbonizzati, fumo, legno rovinato. Se due quadrati sembrano uguali, prendi quello con meno potenza (o più veloce).',s2);
   let sug=null;
   if(A){
-    const cells=[];ep.forEach((pc,j)=>es.forEach((v,i)=>cells.push({j,i,pc,v,e:pc/v,d:A[j][i]})));
-    const dm=Math.max(...cells.map(c=>c.d));
-    if(dm>=0.08){
-      cells.sort((a,b)=>a.e-b.e);
-      sug=cells.find(c=>c.d>=0.85*dm)||cells[cells.length-1];
-      say('Ho misurato dalla foto quanto è scuro ogni quadrato (la percentuale scritta sotto). Ti consiglio quello con ★: è il primo, partendo dal più leggero, che arriva quasi al massimo di scurezza (il più scuro in assoluto è '+Math.round(dm*100)+'%). Guardalo dal vivo: se ha bordi bruciati o fumo, scegli invece uno più leggero.',false);
-    }else say('Dalla foto i quadrati sembrano tutti molto chiari: la foto è sfocata, troppo lontana, o la potenza della prova era troppo bassa. Scegli tu a occhio.',false);
-    if(d.ov){const im=document.createElement('img');im.src=d.ov;im.style.cssText='width:100%;max-width:440px;border-radius:8px;border:1px solid var(--line)';wrap.appendChild(im);say('Controllo: i riquadri verdi (incisione) e blu (taglio) devono stare sopra i quadrati veri. Se sono spostati, rifai la foto più dritta e più vicina: i numeri non vanno bene.',false);}
+    const cl=[];ep.forEach((pc,j)=>es.forEach((v,i)=>cl.push({j,i,e:pc/v,d:A[j][i]})));
+    const dm=Math.max(...cl.map(c=>c.d));
+    if(dm>=0.08){cl.sort((a,b)=>a.e-b.e);sug=cl.find(c=>c.d>=0.85*dm)||cl[cl.length-1];
+      el('p','hint','Dalla foto ho misurato quanto è scuro ogni quadrato (la percentuale). Il ★ è il primo, dal più leggero, che arriva quasi al massimo (massimo misurato: '+Math.round(dm*100)+'%). <b>Guardalo dal vivo</b>: se ha bordi bruciati o fumo, prendine uno più leggero.',s2);
+    }else el('p','hint','Dalla foto i quadrati sembrano tutti molto chiari: foto sfocata o lontana, oppure prova troppo debole. Scegli a occhio.',s2);
+    if(d.ov){const im=el('img',null,null,s2);im.src=d.ov;el('div','lg','<span><i style="background:#19a974"></i>incisione</span><span><i style="background:#1f6feb"></i>taglio</span><span>I riquadri devono coprire i quadrati veri: se sono spostati, rifai la foto più dritta e vicina.</span>',s2);}
   }
-  const eb=grid(es,ep,(pc,v)=>{selE=[pc,v];},A?(j,i)=>(sug&&sug.j===j&&sug.i===i?'★ ':'')+'scuro '+Math.round(A[j][i]*100)+'%':null);
-  if(sug){const b=eb.find(x=>x._j===sug.j&&x._i===sug.i);if(b)b.click();}
-  sv.className='btn primary';sv.textContent='Salva questo materiale';sv.disabled=!sug;sv.style.marginTop='10px';wrap.appendChild(sv);
-  const st=document.createElement('p');st.className='hint';wrap.appendChild(st);
+  const mix=x=>{const a=[222,176,128],b=[40,22,12],c=a.map((v,k)=>Math.round(v+(b[k]-v)*x));return 'rgb('+c+')';};
+  const eb=table(s2,es,ep,(pc,v)=>{selE=[pc,v];},A?(j,i)=>({bg:mix(A[j][i]),fg:A[j][i]>0.45?'#fff':'#2b2118',txt:Math.round(A[j][i]*100)+'%',sub:'scuro',star:!!(sug&&sug.j===j&&sug.i===i)}):()=>({}));
+  if(sug){const b=eb.find(x=>x._j===sug.j&&x._i===sug.i);if(b){selE=[ep[sug.j],es[sug.i]];b.classList.add('on');}}
+  // ---- riepilogo + salva ----
+  const fin=el('div','sum');fin.appendChild(sum);
+  sv.className='btn primary';sv.textContent='Salva questo materiale';fin.appendChild(sv);
+  const st=el('p','hint','');
+  upd();
   sv.onclick=()=>{
     const m={id:'c_'+Date.now(),name:full,minP:8,maxP:65,speed:2500};
     if(selE){m.maxP=selE[0];m.minP=Math.max(1,Math.round(selE[0]*0.15));m.speed=selE[1];}

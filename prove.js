@@ -176,7 +176,25 @@ const T=[
         }
       });
     }
-    const W=Math.max(xq+q.size+4,sx+63+4,t1.w+8,xh),H=Math.max(y2+24,yf+30+2,yh);
+    // riga 4: forme piccole (cerchio, esagono, quadrato), scritte di varie altezze e foro per appenderla
+    const y4=yh+9,SZ=[1,2,3,4,5,6,8,10];let xs=6;
+    tit('FORME PICCOLE (mm)',4,y4-5);
+    SZ.forEach(v=>{
+      ops.push(...text(v,xs+(v-String(v).length*3)/2+0.6,y4,LAB));
+      const cx=xs+v/2,r=v/2,pc=[];
+      for(let k=0;k<24;k++){const a=k*Math.PI/12;pc.push([cx+r*Math.cos(a),y4+7+r+r*Math.sin(a)]);}
+      const ph=[];for(let k=0;k<6;k++){const a=k*Math.PI/3;ph.push([cx+r*Math.cos(a),y4+7+13+r+r*Math.sin(a)]);}
+      cuts.push({k:'cut',pts:pc,closed:true,pct:co.pct,F:co.F,passes:co.passes});
+      cuts.push({k:'cut',pts:ph,closed:true,pct:co.pct,F:co.F,passes:co.passes});
+      cuts.push({k:'cut',pts:rect(xs,y4+7+26,v,v),closed:true,pct:co.pct,F:co.F,passes:co.passes});
+      xs+=v+4;
+    });
+    const xt=xs+6;tit('SCRITTE (altezza in mm)',xt,y4-5);let yt=y4+1,xe=xt;
+    [1.5,2,2.5,3,3.5,4].forEach(hh=>{const tt=textOps('Prova '+hh+' mm',xt,yt,hh,qp,F,0.15);ops.push(...tt.ops);xe=Math.max(xe,xt+tt.w);yt+=hh+2.6;});
+    const hx=Math.max(xe+10,xt+58),hy2=y4+16;
+    cuts.push({k:'cut',pts:Array.from({length:24},(_,k)=>[hx+2.5*Math.cos(k*Math.PI/12),hy2+2.5*Math.sin(k*Math.PI/12)]),closed:true,pct:co.pct,F:co.F,passes:co.passes});
+    tit('FORO',hx-4,y4-5);
+    const W=Math.max(xq+q.size+4,sx+63+4,t1.w+8,xh,hx+8),H=Math.max(y2+24,yf+30+2,yh,y4+7+26+10+4);
     const all=ops.concat(cuts);
     if(!/^n/i.test(String(p.cont).trim()))all.push({k:'cut',pts:rrect(0,0,W,H,4),closed:true,pct:co.pct,F:co.F,passes:co.passes});
     return all;}}

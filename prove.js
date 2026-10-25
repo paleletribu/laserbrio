@@ -145,28 +145,29 @@ const T=[
     const y2=Math.max(gb+5,yf+6*5+1);
     const co=E.cut(),sx=4;tit('Fuoco',xq,yf-4.5);const st=Math.max(0.02,+p.step||0.1);
     const px0=sx;
-    // colonna a destra: forme piccole e scritte (riempie lo spazio accanto al QR)
-    const xr=Math.max(xq+q.size,px0+87)+8,SZ=[1,2,3,4,5,6,8,10],yS=17,SD=SZ.slice().reverse();
+    // forme piccole (a sinistra) e scritte (a destra), in una fascia sotto la parte alta
+    const xr=4,yB=y2+8,SZ=[1,2,3,4,5,6,8,10],yS=yB+13,SD=SZ.slice().reverse();
     const lay=a=>{let x=xr;return a.map(v=>{const o=x;x+=v+4;return [o,o+v,v];});};
     const rA=lay(SZ),rD=lay(SD),xs=xr+SZ.reduce((u,v)=>u+v+4,0);
     // il passo tra le file è il minimo che evita le sovrapposizioni (la fila centrale è in ordine inverso, così le forme si incastrano)
     const need=(p1,p2)=>{let m=0;p1.forEach(u=>p2.forEach(w=>{if(u[0]<w[1]+1.5&&w[0]<u[1]+1.5)m=Math.max(m,(u[2]+w[2])/2+3);}));return m;};
     const PR=Math.max(need(rA,rD),need(rD,rA),9);
-    tit('Forme piccole (mm) · esagoni in ordine inverso',xr,4);
-    rA.forEach(([x0,x1,v])=>nl(v,(x0+x1)/2,10.5,'c'));
+    tit('Forme piccole (mm) · esagoni in ordine inverso',xr,yB);
+    rA.forEach(([x0,x1,v])=>nl(v,(x0+x1)/2,yB+6.5,'c'));
     const cy=k=>yS+5+k*PR,circ=(cx,cyy,r,n,a0)=>{const o=[];for(let k=0;k<n;k++){const a=a0+k*2*Math.PI/n;o.push([cx+r*Math.cos(a),cyy+r*Math.sin(a)]);}return o;};
     rA.forEach(([x0,x1,v])=>{cuts.push({k:'cut',pts:circ((x0+x1)/2,cy(0),v/2,24,0),closed:true,pct:co.pct,F:co.F,passes:co.passes});cuts.push({k:'cut',pts:rect(x0,cy(2)-v/2,v,v),closed:true,pct:co.pct,F:co.F,passes:co.passes});});
     rD.forEach(([x0,x1,v])=>cuts.push({k:'cut',pts:circ((x0+x1)/2,cy(1),v/2,6,0),closed:true,pct:co.pct,F:co.F,passes:co.passes}));
-    const yT=cy(2)+5+10;tit('Scritte (altezza in mm)',xr,yT-5);let yt=yT;
-    [1.5,2,2.5,3,3.5,4].forEach(hh=>{ops.push(...textOps('Prova '+hh,xr,yt,hh,qp,F,0.15,'600').ops);yt+=hh+2.6;});
+    const xt=xs+10,yT=yB+7;tit('Scritte (altezza in mm)',xt,yB);let yt=yT;
+    [1.5,2,2.5,3,3.5,4].forEach(hh=>{ops.push(...textOps('Prova '+hh,xt,yt,hh,qp,F,0.15,'600').ops);yt+=hh+2.6;});
+    const yE=Math.max(yt,cy(2)+5);
     // piegature: 6 linguette attaccate al foglio (tagliate su 3 lati), con le righe che arrivano quasi ai bordi
-    const NAME={R:'Righe',L:'Lenti'},W0=Math.max(xs,xq+q.size+4),y3=Math.max(y2+6,yt+4),th=54,pcol=(W0-4)/6,pw=pcol-4;
-    tit('Piegature (piega le linguette piano con le mani)',4,y3-5);
+    const NAME={R:'Righe',L:'Lenti'},W0=Math.max(xs+70,xq+q.size+4),y3=yE+10,th=46,pcol=(W0-4)/3,pw=pcol-4,rowH=th+14;
+    tit('Piegature (piega le linguette piano con le mani)',4,y3);
     hp.forEach(([ty,pt],i)=>{
-      const x0=4+i*pcol,y0=y3+7,by=y0+8,bh=th-8-10;
+      const x0=4+(i%3)*pcol,y0=y3+8+Math.floor(i/3)*rowH,by=y0+8,bh=th-8-10;
       tit(NAME[ty]+' · '+pt+' mm',x0,y0-4.6,2.1);
       // righe dritte (come i modelli di cerniera classici): tratti da bordo a bordo, sfalsati di mezzo passo; lenti: stesso schema con tagli a lente
-      const n=Math.floor(bh/pt)+1,yc=by+(bh-(n-1)*pt)/2,iw=pw,X=x0,lens=ty==='L',gp=lens?2.5:2.4,nn=lens?2:3,Ls=(iw-(nn-1)*gp)/nn,P=Ls+gp,hw=Math.min(0.4*pt,1.1);
+      const n=Math.floor(bh/pt)+1,yc=by+(bh-(n-1)*pt)/2,iw=pw,X=x0,lens=ty==='L',gp=lens?2.5:2.4,nn=3,Ls=(iw-(nn-1)*gp)/nn,P=Ls+gp,hw=Math.min(0.4*pt,1.1);
       // lo schema è simmetrico rispetto al centro della linguetta; le file dispari sono sfalsate di mezzo passo e i pezzi sul bordo sono tagliati dal bordo
       for(let r=0;r<n;r++){
         const y=yc+r*pt;
@@ -181,7 +182,7 @@ const T=[
       cuts.push({k:'cut',pts:[[x0,y0],[x0,y0+th],[x0+pw,y0+th],[x0+pw,y0]],closed:false,pct:co.pct,F:co.F,passes:co.passes});
     });
     const MG=19;
-    const W=Math.max(xq+q.size+4,px0+87+4,t1.w+8,W0+2)+MG,H=Math.max(y2+26,yf+30+2,y3+7+th+6,yt+2);
+    const W=Math.max(xq+q.size+4,t1.w+8,W0+2)+MG,H=y3+8+rowH+th+6;
     // tutto il disegno si sposta a destra di MG mm; a sinistra restano le tacche aperte sul bordo (si liberano con il taglio del contorno)
     const mv=o=>{if(o.pts)o.pts=o.pts.map(p=>[p[0]+MG,p[1]]);if(o.x0!==undefined){o.x0+=MG;o.x1+=MG;}if(o.x!==undefined&&o.pts===undefined)o.x+=MG;};
     ops.forEach(mv);cuts.forEach(mv);

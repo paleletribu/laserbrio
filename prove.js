@@ -161,10 +161,10 @@ const T=[
     [1.5,2,2.5,3,3.5,4].forEach(hh=>{ops.push(...textOps('Prova '+hh,xt,yt,hh,qp,F,0.15,'600').ops);yt+=hh+2.6;});
     const yE=Math.max(yt,cy(2)+5);
     // piegature: 6 linguette attaccate al foglio (tagliate su 3 lati), con le righe che arrivano quasi ai bordi
-    const NAME={R:'Righe',L:'Lenti'},W0=Math.max(xs+70,xq+q.size+4),y3=yE+10,th=46,pcol=(W0-4)/3,pw=pcol-4,rowH=th+14;
-    tit('Piegature (piega le linguette piano con le mani)',4,y3);
+    const NAME={R:'Righe',L:'Lenti'},W0=Math.max(xs+70,xq+q.size+4),xT=W0+8,th=44,pcol=46,pw=42,rowH=th+14;
+    tit('Piegature',xT,4);
     hp.forEach(([ty,pt],i)=>{
-      const x0=4+(i%3)*pcol,y0=y3+8+Math.floor(i/3)*rowH,by=y0+8,bh=th-8-10;
+      const x0=xT+Math.floor(i/3)*pcol,y0=16+(i%3)*rowH,by=y0+8,bh=th-8-10;
       tit(NAME[ty]+' · '+pt+' mm',x0,y0-4.6,2.1);
       // righe dritte (come i modelli di cerniera classici): tratti da bordo a bordo, sfalsati di mezzo passo; lenti: stesso schema con tagli a lente
       const n=Math.floor(bh/pt)+1,yc=by+(bh-(n-1)*pt)/2,iw=pw,X=x0,lens=ty==='L',gp=lens?2.5:2.4,nn=3,Ls=(iw-(nn-1)*gp)/nn,P=Ls+gp,hw=Math.min(0.4*pt,1.1);
@@ -182,7 +182,7 @@ const T=[
       cuts.push({k:'cut',pts:[[x0,y0],[x0,y0+th],[x0+pw,y0+th],[x0+pw,y0]],closed:false,pct:co.pct,F:co.F,passes:co.passes});
     });
     const MG=19;
-    const W=Math.max(xq+q.size+4,t1.w+8,W0+2)+MG,H=y3+8+rowH+th+6;
+    const W=xT+pcol+pw+4+MG,H=Math.max(yE+6,16+3*rowH-8);
     // tutto il disegno si sposta a destra di MG mm; a sinistra restano le tacche aperte sul bordo (si liberano con il taglio del contorno)
     const mv=o=>{if(o.pts)o.pts=o.pts.map(p=>[p[0]+MG,p[1]]);if(o.x0!==undefined){o.x0+=MG;o.x1+=MG;}if(o.x!==undefined&&o.pts===undefined)o.x+=MG;};
     ops.forEach(mv);cuts.forEach(mv);

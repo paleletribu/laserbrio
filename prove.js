@@ -167,17 +167,19 @@ const T=[
       const x0=xT+Math.floor(i/3)*pcol,y0=16+(i%3)*rowH,by=y0+8,bh=th-8-10;
       tit(NAME[ty]+' · '+pt+' mm',x0,y0-4.6,2.1);
       // righe dritte (come i modelli di cerniera classici): tratti da bordo a bordo, sfalsati di mezzo passo; lenti: stesso schema con tagli a lente
-      const n=Math.floor(bh/pt)+1,yc=by+(bh-(n-1)*pt)/2,iw=pw,X=x0,lens=ty==='L',gp=lens?2.5:2.4,nn=3,Ls=(iw-(nn-1)*gp)/nn,P=Ls+gp,hw=Math.min(0.4*pt,1.1);
+      const n=Math.floor(bh/pt)+1,yc=by+(bh-(n-1)*pt)/2,iw=pw,X=x0,lens=ty==='L',gp=lens?2.5:2.4,nn=3,Ls=(iw-(nn-1)*gp)/nn,P=Ls+gp,hw=Math.min(0.3*pt,1);
       // lo schema è simmetrico rispetto al centro della linguetta; le file dispari sono sfalsate di mezzo passo e i pezzi sul bordo sono tagliati dal bordo
       for(let r=0;r<n;r++){
         const y=yc+r*pt;
-        for(let a=(r%2?-P/2:0);a<iw-0.01;a+=P){
-          const s0=Math.max(a,0),s1=Math.min(a+Ls,iw);if(s1-s0<1.5)continue;
+        const segs=[];
+        if(lens){const Pl=pw/2,Ll=Pl-gp;if(r%2)segs.push([Pl-Ll/2,Pl+Ll/2],[0,Ll/2-gp/2],[pw-(Ll/2-gp/2),pw]);else segs.push([Pl/2-Ll/2,Pl/2+Ll/2],[1.5*Pl-Ll/2,1.5*Pl+Ll/2]);}
+        else for(let a=(r%2?-P/2:0);a<iw-0.01;a+=P){const s0=Math.max(a,0),s1=Math.min(a+Ls,iw);if(s1-s0>=1.5)segs.push([s0,s1]);}
+        segs.forEach(([s0,s1])=>{
           let pts,closed=false;
-          if(lens){closed=true;const m=Math.round(Ls/0.5),up=[],dn=[];for(let k=0;k<=m;k++){const x=a+Ls*k/m,hh=hw*Math.sin(Math.PI*k/m),xc=Math.max(0,Math.min(iw,x));if(xc!==x&&up.length&&up[up.length-1][0]===X+xc&&true)continue;up.push([X+xc,y-hh]);dn.push([X+xc,y+hh]);}pts=up.concat(dn.reverse());}
+          if(lens){closed=true;const m=Math.max(6,2*Math.round((s1-s0)/1.4)),up=[],dn=[];for(let k=0;k<=m;k++){const x=s0+(s1-s0)*k/m,hh=hw*Math.sin(Math.PI*k/m);up.push([X+x,y-hh]);dn.push([X+x,y+hh]);}pts=up.concat(dn.slice(1,-1).reverse());}
           else pts=[[X+s0,y],[X+s1,y]];
           cuts.push({k:'cut',pts,closed,pct:co.pct,F:co.F,passes:co.passes});
-        }
+        });
       }
       cuts.push({k:'cut',pts:[[x0,y0],[x0,y0+th],[x0+pw,y0+th],[x0+pw,y0]],closed:false,pct:co.pct,F:co.F,passes:co.passes});
     });

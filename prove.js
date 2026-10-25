@@ -105,7 +105,7 @@ const LAB=12;   // potenza delle scritte (incisione leggera)
 const parseG=str=>String(str||'').split('_').map(g=>nums(g.replace(/,/g,' ')));
 const T=[
  {id:'scheda',name:'Scheda di prova (un foglio solo)',
-  desc:'Un foglio solo da incidere su ogni nuovo legno e da conservare: nome, spessore e data, quadratini di taglio e di incisione, fuoco, tacche sul lato con pannellini da incastrare, piegature e un QR. Dopo l\'incisione fotografa il foglio col QR: laserBrio ti guida a scegliere i valori giusti e li ricorda.',
+  desc:'Un foglio solo da incidere su ogni nuovo legno e da conservare: nome, spessore e data, quadratini di taglio e di incisione, fuoco, tacche sul lato per provare gli incastri, piegature e un QR. Dopo l\'incisione fotografa il foglio col QR: laserBrio ti guida a scegliere i valori giusti e li ricorda.',
   par:[['cs','Taglio: velocità (mm/min)','150,250,400'],['cp','Taglio: potenze (%)','70,85,100'],['es','Incisione: velocità (mm/min)','1500,2500,3500'],['ep','Incisione: potenze (%)','15,30,45'],
        ['fp','Fuoco: potenza (%)','30'],['fs','Fuoco: velocità','1500'],['step','Incastro: passo delle fessure (mm)','0.1'],
        ['qp','Potenza di scritte e QR (%)','30'],['hg','Piegatura: distanza tra le righe (mm)','1.5,2,3'],['cont','Taglia il contorno (si/no)','si']],
@@ -144,11 +144,7 @@ const T=[
     // riga 2: fessure e pannellini da incastrare (la linguetta è larga quanto lo spessore scritto)
     const y2=Math.max(gb+5,yf+6*5+1);
     const co=E.cut(),sx=4;tit('Fuoco',xq,yf-4.5);const st=Math.max(0.02,+p.step||0.1);
-    const px0=sx;tit('Pannellini da infilare nelle tacche a sinistra',px0,y2-4.5);
-    for(let k=0;k<3;k++){
-      const x=px0+k*29,m=x+11,h2=t/2;
-      cuts.push({k:'cut',pts:[[x,y2],[x+22,y2],[x+22,y2+12],[m+h2,y2+12],[m+h2,y2+17],[m-h2,y2+17],[m-h2,y2+12],[x,y2+12]],closed:true,pct:co.pct,F:co.F,passes:co.passes});
-    }
+    const px0=sx;
     // colonna a destra: forme piccole e scritte (riempie lo spazio accanto al QR)
     const xr=Math.max(xq+q.size,px0+87)+8,SZ=[1,2,3,4,5,6,8,10],yS=17,SD=SZ.slice().reverse();
     const lay=a=>{let x=xr;return a.map(v=>{const o=x;x+=v+4;return [o,o+v,v];});};
@@ -164,7 +160,7 @@ const T=[
     const yT=cy(2)+5+10;tit('Scritte (altezza in mm)',xr,yT-5);let yt=yT;
     [1.5,2,2.5,3,3.5,4].forEach(hh=>{ops.push(...textOps('Prova '+hh,xr,yt,hh,qp,F,0.15,'600').ops);yt+=hh+2.6;});
     // piegature: 6 linguette attaccate al foglio (tagliate su 3 lati), con le righe che arrivano quasi ai bordi
-    const NAME={R:'Righe',O:'Onde',L:'Lenti',Z:'Zigzag'},W0=Math.max(xs,xq+q.size+4),y3=Math.max(y2+34,yt+4),th=40,pcol=(W0-4)/6,pw=pcol-4;
+    const NAME={R:'Righe',O:'Onde',L:'Lenti',Z:'Zigzag'},W0=Math.max(xs,xq+q.size+4),y3=Math.max(y2+6,yt+4),th=40,pcol=(W0-4)/6,pw=pcol-4;
     tit('Piegature (piega le linguette piano con le mani)',4,y3-5);
     hp.forEach(([ty,pt],i)=>{
       const x0=4+i*pcol,y0=y3+7,by=y0+8,bh=th-8-10;
@@ -394,7 +390,7 @@ function picker(box,d,full){
   const s3=el('div','st');
   el('div','sh','<span class="n">3</span><b>Incastri</b>',s3);
   el('div','rule','Tocca la tacca in cui il legno <strong>entra a pressione con le dita</strong>, senza gioco e senza forzare.',s3);
-  el('details',null,'<summary>Come lo provo?</summary>Stacca i 3 pannellini dal foglio (hanno una linguetta larga come lo spessore scritto) e togli i pezzetti caduti dalle 7 tacche sul lato sinistro. Infila la linguetta <b>di costa</b> in ogni tacca, dalla più stretta alla più larga. Quella giusta la tiene ferma ma la lascia entrare con una piccola spinta: se entra da sola è troppo larga, se devi martellare è troppo stretta. Il numero è la larghezza della tacca in mm: è lo spessore vero del tuo legno, che spesso non è quello scritto sulla confezione.',s3);
+  el('details',null,'<summary>Come lo provo?</summary>Togli i pezzetti caduti dalle 7 tacche sul lato sinistro. Prendi un ritaglio dello stesso legno e infilalo <b>di costa</b> in ogni tacca, dalla più stretta alla più larga. Quella giusta lo tiene fermo ma lo lascia entrare con una piccola spinta: se entra da solo è troppo larga, se devi martellare è troppo stretta. Il numero è la larghezza della tacca in mm: è lo spessore vero del tuo legno, che spesso non è quello scritto sulla confezione.',s3);
   row(s3,[0,1,2,3,4,5,6].map(i=>{const w=Math.round((tk+(i-3)*stp)*100)/100;return [w.toFixed(2),i===3?'nominale':(i<3?'stretta':'larga'),w];}),w=>{selS=w;});
   // ---- 4 PIEGATURA ----
   const NM={R:'Righe',O:'Onde',L:'Lenti',Z:'Zigzag'},hl=String(d.h||'').split(',').map(t=>{const m=String(t).match(/^([ROLZ])?([\d.]+)$/);return m?{t:m[1]||'R',v:+m[2]}:null;}).filter(x=>x&&x.v>0);

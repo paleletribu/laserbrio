@@ -105,7 +105,7 @@ const LAB=12;   // potenza delle scritte (incisione leggera)
 const parseG=str=>String(str||'').split('_').map(g=>nums(g.replace(/,/g,' ')));
 const T=[
  {id:'scheda',name:'Scheda di prova (un foglio solo)',
-  desc:'Un foglio solo da incidere su ogni nuovo legno e da conservare: nome, spessore e data, quadratini di taglio e di incisione, fuoco, fessure con pannellini da incastrare, piegature e un QR. Dopo l\'incisione fotografa il foglio col QR: laserBrio ti guida a scegliere i valori giusti e li ricorda.',
+  desc:'Un foglio solo da incidere su ogni nuovo legno e da conservare: nome, spessore e data, quadratini di taglio e di incisione, fuoco, tacche sul lato con pannellini da incastrare, piegature e un QR. Dopo l\'incisione fotografa il foglio col QR: laserBrio ti guida a scegliere i valori giusti e li ricorda.',
   par:[['cs','Taglio: velocità (mm/min)','150,250,400'],['cp','Taglio: potenze (%)','70,85,100'],['es','Incisione: velocità (mm/min)','1500,2500,3500'],['ep','Incisione: potenze (%)','15,30,45'],
        ['fp','Fuoco: potenza (%)','30'],['fs','Fuoco: velocità','1500'],['step','Incastro: passo delle fessure (mm)','0.1'],
        ['qp','Potenza di scritte e QR (%)','30'],['hg','Piegatura: distanza tra le righe (mm)','1.5,2,3'],['cont','Taglia il contorno (si/no)','si']],
@@ -143,13 +143,8 @@ const T=[
     for(let i=0;i<6;i++){ops.push({k:'line',pts:[[xq+6,yf+i*5],[xq+q.size,yf+i*5]],pct:fp,F:fs});nl(i+1,xq,yf+i*5-1.2,'l');}
     // riga 2: fessure e pannellini da incastrare (la linguetta è larga quanto lo spessore scritto)
     const y2=Math.max(gb+5,yf+6*5+1);
-    const co=E.cut(),sx=4;tit('Incastri: prova la linguetta in ogni fessura',sx,y2-4.5);tit('Fuoco',xq,yf-4.5);const st=Math.max(0.02,+p.step||0.1);
-    for(let i=0;i<7;i++){
-      const w=t+(i-3)*st,x=sx+i*9+(9-w)/2,lab=String(Math.round(w*100)/100);
-      nl(lab,sx+i*9+4.5,y2+19.5,'c');
-      cuts.push({k:'cut',pts:rrect(x,y2,w,12,Math.min(1,w/2-0.1)),closed:true,pct:co.pct,F:co.F,passes:co.passes});
-    }
-    const px0=sx+7*9+10;tit('Pannellini',px0,y2-4.5);
+    const co=E.cut(),sx=4;tit('Fuoco',xq,yf-4.5);const st=Math.max(0.02,+p.step||0.1);
+    const px0=sx;tit('Pannellini da infilare nelle tacche a sinistra',px0,y2-4.5);
     for(let k=0;k<3;k++){
       const x=px0+k*29,m=x+11,h2=t/2;
       cuts.push({k:'cut',pts:[[x,y2],[x+22,y2],[x+22,y2+12],[m+h2,y2+12],[m+h2,y2+17],[m-h2,y2+17],[m-h2,y2+12],[x,y2+12]],closed:true,pct:co.pct,F:co.F,passes:co.passes});
@@ -189,7 +184,18 @@ const T=[
       }
       cuts.push({k:'cut',pts:[[x0,y0],[x0,y0+th],[x0+pw,y0+th],[x0+pw,y0]],closed:false,pct:co.pct,F:co.F,passes:co.passes});
     });
-    const W=Math.max(xq+q.size+4,px0+87+4,t1.w+8,W0+2),H=Math.max(y2+26,yf+30+2,y3+7+th+6,yt+2);
+    const MG=19;
+    const W=Math.max(xq+q.size+4,px0+87+4,t1.w+8,W0+2)+MG,H=Math.max(y2+26,yf+30+2,y3+7+th+6,yt+2);
+    // tutto il disegno si sposta a destra di MG mm; a sinistra restano le tacche aperte sul bordo (si liberano con il taglio del contorno)
+    const mv=o=>{if(o.pts)o.pts=o.pts.map(p=>[p[0]+MG,p[1]]);if(o.x0!==undefined){o.x0+=MG;o.x1+=MG;}if(o.x!==undefined&&o.pts===undefined)o.x+=MG;};
+    ops.forEach(mv);cuts.forEach(mv);
+    const nt=[-3,-2,-1,0,1,2,3];
+    tit('Tacche (mm)',3,5);
+    nt.forEach((d,i)=>{
+      const w=t+d*st,y=13+i*12.5;
+      cuts.push({k:'cut',pts:[[0,y],[10,y],[10,y+w],[0,y+w]],closed:false,pct:co.pct,F:co.F,passes:co.passes});
+      nl(String(Math.round(w*100)/100),12,y+w/2-1.2,'l');
+    });
     const all=ops.concat(cuts);
     if(!/^n/i.test(String(p.cont).trim()))all.push({k:'cut',pts:rrect(0,0,W,H,4),closed:true,pct:co.pct,F:co.F,passes:co.passes});
     return all;}}
@@ -387,8 +393,8 @@ function picker(box,d,full){
   const row=(par,items,pick)=>{const t=el('div','tb',null,par);t.style.gridTemplateColumns='repeat('+items.length+',1fr)';const cs2=[];items.forEach(it=>{const b=el('button','cell','<b>'+it[0]+'</b><small>'+it[1]+'</small>',t);b.onclick=()=>{pick(it[2]);cs2.forEach(x=>x.classList.remove('on'));b.classList.add('on');upd();};cs2.push(b);});return cs2;};
   const s3=el('div','st');
   el('div','sh','<span class="n">3</span><b>Incastri</b>',s3);
-  el('div','rule','Tocca la fessura in cui il legno <strong>entra a pressione con le dita</strong>, senza gioco e senza forzare.',s3);
-  el('details',null,'<summary>Come lo provo?</summary>Stacca i 3 pannellini dal foglio (hanno una linguetta larga come lo spessore scritto) e togli i pezzetti caduti dalle 7 fessure. Infila la linguetta <b>di costa</b> in ogni fessura, dalla più stretta alla più larga. Quella giusta la tiene ferma ma la lascia entrare con una piccola spinta: se entra da sola è troppo larga, se devi martellare è troppo stretta. Il numero è la larghezza della fessura in mm: è lo spessore vero del tuo legno, che spesso non è quello scritto sulla confezione.',s3);
+  el('div','rule','Tocca la tacca in cui il legno <strong>entra a pressione con le dita</strong>, senza gioco e senza forzare.',s3);
+  el('details',null,'<summary>Come lo provo?</summary>Stacca i 3 pannellini dal foglio (hanno una linguetta larga come lo spessore scritto) e togli i pezzetti caduti dalle 7 tacche sul lato sinistro. Infila la linguetta <b>di costa</b> in ogni tacca, dalla più stretta alla più larga. Quella giusta la tiene ferma ma la lascia entrare con una piccola spinta: se entra da sola è troppo larga, se devi martellare è troppo stretta. Il numero è la larghezza della tacca in mm: è lo spessore vero del tuo legno, che spesso non è quello scritto sulla confezione.',s3);
   row(s3,[0,1,2,3,4,5,6].map(i=>{const w=Math.round((tk+(i-3)*stp)*100)/100;return [w.toFixed(2),i===3?'nominale':(i<3?'stretta':'larga'),w];}),w=>{selS=w;});
   // ---- 4 PIEGATURA ----
   const NM={R:'Righe',O:'Onde',L:'Lenti',Z:'Zigzag'},hl=String(d.h||'').split(',').map(t=>{const m=String(t).match(/^([ROLZ])?([\d.]+)$/);return m?{t:m[1]||'R',v:+m[2]}:null;}).filter(x=>x&&x.v>0);

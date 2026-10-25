@@ -15,6 +15,8 @@ function rect(cx,cy,w,h){return [[cx-w/2,cy-h/2],[cx+w/2,cy-h/2],[cx+w/2,cy+h/2]
 function rectPts(x,y,w,h){return [[x,y],[x+w,y],[x+w,y+h],[x,y+h]];}
 function fingerN(D,fg){let n=Math.round(D/fg);if(n%2===0)n++;return Math.max(3,n);}
 function depthCenters(p){return [0.25*p.D,0.7*p.D];}
+// le due chiavi di ogni interfaccia sono sfalsate (una a 30%, l'altra a 70%): così i moduli non possono inclinarsi né ruotare
+const STAG=[0.3,0.7];
 function backCount(len){return Math.max(2,Math.round(len/60));}
 // fianco: x = profondità, y = altezza esterna. Pettine: incavi sui denti pari, sopra e sotto.
 function sidePts(D,H,t,N){const f=D/N,pts=[];
@@ -39,14 +41,14 @@ function tabbed(w,h,t,cx,cy,tlw,tlh){
 function sidePaths(p,n){
   const H=n*p.Ph,Hin=H-2*p.t,N=fingerN(p.D,p.fg);
   const paths=[{pts:sidePts(p.D,H,p.t,N)}];
-  depthCenters(p).forEach(cx=>{for(let k=0;k<n;k++)paths.push({hole:true,pts:rect(cx,(k+.5)*p.Ph,p.kl+p.tol,p.t+p.tol)});});
+  depthCenters(p).forEach((cx,i)=>{for(let k=0;k<n;k++)paths.push({hole:true,pts:rect(cx,(k+STAG[i])*p.Ph,p.kl+p.tol,p.t+p.tol)});});
   if(p.back){const nb=backCount(Hin),tl=Math.min(30,Hin/nb*.5);
     for(let i=0;i<nb;i++)paths.push({hole:true,pts:rect(p.D-1.5*p.t,p.t+(i+.5)*Hin/nb,p.t+p.tol,tl+p.tol)});}
   return paths;}
 function tbPaths(p){
   const N=fingerN(p.D,p.fg);
   const paths=[{pts:tbPts(p.Pw,p.D,p.t,N)}];
-  depthCenters(p).forEach(c=>paths.push({hole:true,pts:rect(p.Pw/2,c,p.t+p.tol,p.kl+p.tol)}));
+  depthCenters(p).forEach((c,i)=>paths.push({hole:true,pts:rect(STAG[i]*p.Pw,c,p.t+p.tol,p.kl+p.tol)}));
   if(p.back){const nb=backCount(p.Y),tl=Math.min(30,p.Y/nb*.5);
     for(let i=0;i<nb;i++)paths.push({hole:true,pts:rect(p.t+(i+.5)*p.Y/nb,p.D-1.5*p.t,tl+p.tol,p.t+p.tol)});}
   return paths;}
@@ -85,6 +87,21 @@ function check(p){
   if(p.back&&depthCenters(p)[1]+p.kl/2>p.D-2*p.t-2)return 'Profondità troppo piccola: le asole delle chiavi toccano quelle dello schienale. Aumentala o accorcia la chiave.';
   return '';}
 
+function rotParts(parts,tags){
+  return parts.map(pt=>tags.includes(pt.tag)?Object.assign({},pt,{paths:pt.paths.map(q=>({hole:q.hole,pts:q.pts.map(([x,y])=>[y,-x])}))}):pt);}
+function bestPack(parts,area){
+  const tbs=parts.map(x=>x.tag).filter(x=>x==='tb'||/^back/.test(x));
+  const variants=[[],['tb'],tbs,parts.map(x=>x.tag).filter(x=>x!=='key')];
+  let best=null,err=null;
+  for(const v of variants){
+    const r=packSheets(rotParts(parts,v),area.w,area.h);
+    if(r.error){err=err||r.error;continue;}
+    const a=r.sheets.reduce((s,sh)=>s+sh.w*sh.h,0);
+    if(!best||r.sheets.length<best.sheets.length||(r.sheets.length===best.sheets.length&&a<best.a)){best=r;best.a=a;}
+  }
+  return best||{error:err||'Non riesco a impaginare i pezzi.'};
+}
+
 /* ---------- piano di taglio per l'app ---------- */
 function plan(area){
   if(!ready)return {error:'Sto caricando…'};
@@ -102,7 +119,7 @@ function plan(area){
     parts.push({name:'Fianco '+n+'X',tag:'side'+n,count:2*counts[n],paths:sidePaths(p,n)});
     if(p.back)parts.push({name:'Schienale '+n+'X',tag:'back'+n,count:counts[n],paths:backPaths(p,n)});});
   if(keys>0)parts.push({name:'Chiave',tag:'key',count:keys,paths:keyPaths(p)});
-  const sh=packSheets(parts,area.w,area.h);
+  const sh=bestPack(parts,area);
   if(sh.error)return {error:sh.error};
   const hardware=[
     'Legno da '+p.t+' mm (pioppo o compensato): stesso spessore e stesso foglio per tutti i moduli',

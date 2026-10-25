@@ -110,11 +110,11 @@ const T=[
   par:[['cs','Taglio: velocità (mm/min)','150,250,400'],['cp','Taglio: potenze (%)','70,85,100'],['es','Incisione: velocità (mm/min)','1500,2500,3500'],['ep','Incisione: potenze (%)','15,30,45'],
        ['fp','Fuoco: potenza (%)','30'],['fs','Fuoco: velocità','1500'],['step','Incastro: passo delle fessure (mm)','0.1'],
        ['qp','Potenza di scritte e QR (%)','30'],['hg','Piegatura: distanza tra le righe (mm)','2,2.75,3.5'],['cont','Taglia il contorno (si/no)','si']],
-  gen(p,E){
+  gen(p,E,xf){
     const cs=nums(p.cs).slice(0,5),cp=nums(p.cp).slice(0,5),es=nums(p.es).slice(0,5),ep=nums(p.ep).slice(0,5);
     if(!cs.length||!cp.length||!es.length||!ep.length)return [];
     const nome=(GL.nome||'Materiale').trim(),sp=(GL.sp||'').trim(),t=+sp||3,qp=Math.min(100,+p.qp||30),F=2000,c=8,g=5,ops=[],cuts=[];
-    let cg='base';const tagA=a=>{const pp=a.push.bind(a);a.push=(...xs)=>{xs.forEach(x=>{if(!x.g)x.g=cg;});return pp(...xs);};return a;};tagA(ops);tagA(cuts);
+    let cg='head';const tagA=a=>{const pp=a.push.bind(a);a.push=(...xs)=>{xs.forEach(x=>{if(!x.g)x.g=cg;});return pp(...xs);};return a;};tagA(ops);tagA(cuts);
     const t1=textOps(nome,4,2.5,6,qp,F,0.15,'600');ops.push(...t1.ops);
     const tsp=sp?textOps(sp+' mm',4,11.8,2.8,Math.min(qp,LAB+10),F,0.15,'600'):null;if(tsp)ops.push(...tsp.ops);
     const dd=new Date(),ds=String(dd.getDate()).padStart(2,'0')+'/'+String(dd.getMonth()+1).padStart(2,'0')+'/'+String(dd.getFullYear()).slice(2);
@@ -132,13 +132,16 @@ const T=[
       }));
     };
     const ox1=16,ox2=ox1+cs.length*(c+g)+16;
-    grid(ox1,cs,cp,false);grid(ox2,es,ep,true);
-    tit('Taglio',ox1-9,16);tit('Incisione',ox2-9,16);
+    cg='taglio';grid(ox1,cs,cp,false);tit('Taglio',ox1-9,16);
+    cg='incis';grid(ox2,es,ep,true);tit('Incisione',ox2-9,16);
+    cg='qr';
     const gb=oy+Math.max(cp.length,ep.length)*(c+g);
     const xq=ox2+es.length*(c+g)+6;
     const hgs=nums(p.hg).filter(v=>v>=0.5&&v<=8).slice(0,3);
     const hp=hgs.map(v=>['R',v]).concat(hgs.map(v=>['L',v]));
-    const url='https://paleletribu.github.io/laserbrio/?m='+encodeURIComponent(nome)+(sp?'&s='+encodeURIComponent(sp):'')+'&g='+[cs,cp,es,ep].map(a=>a.join(',')).join('_')+'&p='+(+p.step||0.1)+(hp.length?'&h='+hp.map(a=>a[0]+a[1]).join(','):'');
+    const od=g=>{const t=xf&&xf[g];return t?[t.dx||0,t.dy||0]:[0,0]},dq=od('qr'),di=od('incis'),dt2=od('taglio'),rl=v=>Math.round(v*10)/10,ofs=[di[0]-dq[0],di[1]-dq[1],dt2[0]-dq[0],dt2[1]-dq[1]].map(rl);
+    const url='https://paleletribu.github.io/laserbrio/?m='+encodeURIComponent(nome)+(sp?'&s='+encodeURIComponent(sp):'')+'&g='+[cs,cp,es,ep].map(a=>a.join(',')).join('_')+'&p='+(+p.step||0.1)+(hp.length?'&h='+hp.map(a=>a[0]+a[1]).join(','):'')+(ofs.some(v=>v)?'&o='+ofs.join(','):'');
+    if(window.Prove)window.Prove._url=url;
     const q=qrOps(url,xq,4,0.8,qp,F);ops.push(...q.ops);
     // fuoco: 6 linee sotto il QR
     const yf=4+q.size+6,fp=Math.min(100,+p.fp||30),fs=+p.fs||1500;
@@ -203,13 +206,13 @@ const T=[
   fin(all,xf,p,E){   // applica gli spostamenti/ingrandimenti dei pezzi, poi disegna il contorno attorno a tutto
     const co=E.cut(),ext=(o,fn)=>{if(o.k==='run'){fn(o.x0,o.y);fn(o.x1,o.y);}else if(o.k==='fill'){fn(o.x,o.y);fn(o.x+o.w,o.y+o.h);}else o.pts.forEach(q=>fn(q[0],q[1]));};
     const bb=gbox(all);
-    const TT={};
+    const TT={},eff={};
     for(const g in (xf||{})){
       const t=xf[g],b=bb[g];if(!t||!b||g==='tacche')continue;
-      const sc=t.s||1,r=(g==='base'?0:(t.r||0))*Math.PI/180,cs=Math.cos(r),sn=Math.sin(r),cx=(b.x0+b.x1)/2,cy=(b.y0+b.y1)/2;
+      const fx=g==='taglio'||g==='incis'||g==='qr',sc=fx?1:(t.s||1),r=(fx?0:(t.r||0))*Math.PI/180,cs=Math.cos(r),sn=Math.sin(r),cx=(b.x0+b.x1)/2,cy=(b.y0+b.y1)/2;
       const f=(x,y)=>{const u=(x-cx)*sc,v=(y-cy)*sc;return [cx+cs*u-sn*v,cy+sn*u+cs*v];};
       let mnx=1e9,mny=1e9;all.forEach(o=>{if(o.g===g)ext(o,(x,y)=>{const q=f(x,y);if(q[0]<mnx)mnx=q[0];if(q[1]<mny)mny=q[1];});});
-      TT[g]={f,sc,rot:Math.abs(r)>1e-6,dx:Math.max(t.dx||0,19-mnx),dy:Math.max(t.dy||0,2-mny)};
+      TT[g]={f,sc,rot:Math.abs(r)>1e-6,dx:Math.max(t.dx||0,19-mnx),dy:Math.max(t.dy||0,2-mny)};eff[g]=[TT[g].dx,TT[g].dy];
     }
     const out=all.map(o=>{
       const T_=TT[o.g];if(!T_)return o;
@@ -222,7 +225,7 @@ const T=[
     let mx=0,my=0;out.forEach(o=>ext(o,(x,y)=>{if(x>mx)mx=x;if(y>my)my=y;}));
     const W=mx+4,H=Math.max(my+4,105);
     if(!/^n/i.test(String(p.cont).trim()))out.push({k:'cut',g:'contorno',pts:rrect(0,0,W,H,4),closed:true,pct:co.pct,F:co.F,passes:co.passes});
-    return out;}}
+    out.eff=eff;return out;}}
 ];
 
 /* ---------- G-code ---------- */
@@ -315,13 +318,22 @@ function card(parent,tp,E){
   const row=document.createElement('div');row.className='row';row.style.marginTop='8px';c.appendChild(row);
   const go=document.createElement('button');go.className='btn primary';go.textContent='Invia al laser';row.appendChild(go);
   const dl=document.createElement('button');dl.className='btn';dl.textContent='Scarica il G-code';row.appendChild(dl);
-  let cur=null,raw=null,xf={},sel=null,edit=false,bbs={};
+  const FIX=new Set(['taglio','incis','qr']);
+  let cur=null,raw=null,xf={},sel=null,edit=false,bbs={},kt=0;
   const ed=document.createElement('button');ed.className='btn';ed.textContent='Sposta e ridimensiona i pezzi';ed.style.marginTop='6px';
   const rs=document.createElement('button');rs.className='btn';rs.textContent='Rimetti come prima';rs.style.marginTop='6px';rs.hidden=true;
   const rot=document.createElement('button');rot.className='btn';rot.textContent='Ruota di 90°';rot.style.marginTop='6px';rot.hidden=true;
-  const hint=document.createElement('div');hint.className='hint';hint.hidden=true;hint.textContent='Trascina un pezzo per spostarlo. Con il pezzo scelto, trascina il pallino in basso a destra per ingrandirlo o rimpicciolirlo, quello in alto per ruotarlo liberamente (oppure usa Ruota di 90°). Il foglio si adatta da solo. La parte con nome, Taglio, Incisione e QR si sposta ma non si ridimensiona (altrimenti non si legge più dalla foto).';
+  const hint=document.createElement('div');hint.className='hint';hint.hidden=true;hint.textContent='Trascina un pezzo per spostarlo. Con il pezzo scelto, trascina il pallino in basso a destra per ingrandirlo o rimpicciolirlo, quello in alto per ruotarlo liberamente (oppure usa Ruota di 90°). Il foglio si adatta da solo. I quadrati di Taglio, quelli di Incisione e il QR si spostano ma non si ruotano né si ingrandiscono (la lettura della foto si ricorda dove li hai messi). Puoi usare anche le frecce della tastiera: 1 mm alla volta, con Maiusc 5 mm, con Ctrl 0,2 mm; R ruota di 90°.';
   c.insertBefore(ed,cv);c.insertBefore(rot,cv);c.insertBefore(rs,cv);c.insertBefore(hint,cv);
-  rot.onclick=()=>{if(!sel||sel==='base')return;const t=xf[sel]||(xf[sel]={dx:0,dy:0,s:1,r:0});t.r=(Math.round(((t.r||0)+90)/90)*90)%360;rs.hidden=false;view(true);};
+  rot.onclick=()=>{if(!sel||FIX.has(sel))return;const t=xf[sel]||(xf[sel]={dx:0,dy:0,s:1,r:0});t.r=(Math.round(((t.r||0)+90)/90)*90)%360;rs.hidden=false;view(true);};
+  const onKey=e=>{
+    if(!edit||!sel||sel==='tacche'||$('pvOv').hidden||/INPUT|TEXTAREA|SELECT/.test((e.target&&e.target.tagName)||''))return;
+    const st=e.shiftKey?5:(e.ctrlKey||e.metaKey?0.2:1),A={ArrowLeft:[-st,0],ArrowRight:[st,0],ArrowUp:[0,-st],ArrowDown:[0,st]}[e.key];
+    if(e.key==='r'||e.key==='R'){if(!FIX.has(sel)){e.preventDefault();rot.onclick();}return;}
+    if(!A)return;e.preventDefault();
+    const t=xf[sel]||(xf[sel]={dx:0,dy:0,s:1,r:0});t.dx+=A[0];t.dy+=A[1];rs.hidden=false;view(false);clearTimeout(kt);kt=setTimeout(upd,350);
+  };
+  document.addEventListener('keydown',onKey);
   ed.onclick=()=>{edit=!edit;sel=null;rot.hidden=!edit;ed.textContent=edit?'Fatto: smetti di spostare':'Sposta e ridimensiona i pezzi';hint.hidden=!edit;cv.style.touchAction=edit?'none':'';cv.style.cursor=edit?'move':'';view(false);};
   rs.onclick=()=>{xf={};sel=null;rs.hidden=true;view(true);};
   const NAMEG={base:'Intestazione, Taglio, Incisione e QR',forme:'Forme piccole',scritte:'Scritte'};
@@ -332,14 +344,15 @@ function card(parent,tp,E){
     for(const g in bbs){if(g==='tacche'||g==='contorno')continue;const b=bbs[g],on=g===sel;
       x.strokeStyle=on?'#1f6feb':'rgba(31,111,235,.45)';x.setLineDash(on?[]:[6,4]);
       x.strokeRect(15+b.x0*k-3,15+b.y0*k-3,(b.x1-b.x0)*k+6,(b.y1-b.y0)*k+6);
-      if(on&&g!=='base'){x.fillStyle='#1f6feb';x.beginPath();x.arc(15+b.x1*k+3,15+b.y1*k+3,8,0,7);x.fill();x.beginPath();x.moveTo(15+(b.x0+b.x1)/2*k,15+b.y0*k-3);x.lineTo(15+(b.x0+b.x1)/2*k,15+b.y0*k-20);x.stroke();x.beginPath();x.arc(15+(b.x0+b.x1)/2*k,15+b.y0*k-22,8,0,7);x.fill();}
+      if(on&&!FIX.has(g)){x.fillStyle='#1f6feb';x.beginPath();x.arc(15+b.x1*k+3,15+b.y1*k+3,8,0,7);x.fill();x.beginPath();x.moveTo(15+(b.x0+b.x1)/2*k,15+b.y0*k-3);x.lineTo(15+(b.x0+b.x1)/2*k,15+b.y0*k-20);x.stroke();x.beginPath();x.arc(15+(b.x0+b.x1)/2*k,15+b.y0*k-22,8,0,7);x.fill();}
     }
     x.restore();
   }
   function view(full){
     try{
       if(!raw)throw new Error('Controlla i valori scritti.');
-      const ops=tp.fin?tp.fin(raw,xf,val,E):raw,bd=bounds(ops);Prove._last={ops,bd};
+      const ops=tp.fin?tp.fin(raw,xf,val,E):raw,bd=bounds(ops);if(ops.eff)for(const g in ops.eff)if(xf[g]){xf[g].dx=ops.eff[g][0];xf[g].dy=ops.eff[g][1];}
+      Prove._last={ops,bd};
       draw(cv,ops,bd);overlay(ops,bd);
       if(!full)return;
       const r=build(flipY(ops,bd0(ops)),E.smax()),A=E.area();
@@ -351,7 +364,7 @@ function card(parent,tp,E){
     go.disabled=dl.disabled=!cur;
   }
   function upd(){
-    try{raw=tp.gen(val,E);if(!raw.length){raw=null;}}catch(e){raw=null;}
+    try{raw=tp.gen(val,E,xf);if(!raw.length){raw=null;}}catch(e){raw=null;}
     view(true);
   }
   // trascinamento dei pezzi
@@ -359,8 +372,8 @@ function card(parent,tp,E){
   const pt=e=>{const r=cv.getBoundingClientRect(),k=cv._k||1;return [((e.clientX-r.left)*cv.width/r.width-15)/k,((e.clientY-r.top)*cv.height/r.height-15)/k];};
   cv.addEventListener('pointerdown',e=>{
     if(!edit)return;const [mx,my]=pt(e),k=cv._k||1;let hit=null,mode='move';
-    if(sel&&sel!=='base'&&bbs[sel]){const b=bbs[sel];if(Math.hypot((mx-b.x1)*k-3,(my-b.y1)*k-3)<14){hit=sel;mode='scale';}}
-    if(!hit&&sel&&sel!=='base'&&bbs[sel]){const b=bbs[sel];if(Math.hypot((mx-(b.x0+b.x1)/2)*k,(my-b.y0)*k+22)<14){hit=sel;mode='rot';}}
+    if(sel&&!FIX.has(sel)&&bbs[sel]){const b=bbs[sel];if(Math.hypot((mx-b.x1)*k-3,(my-b.y1)*k-3)<14){hit=sel;mode='scale';}}
+    if(!hit&&sel&&!FIX.has(sel)&&bbs[sel]){const b=bbs[sel];if(Math.hypot((mx-(b.x0+b.x1)/2)*k,(my-b.y0)*k+22)<14){hit=sel;mode='rot';}}
     if(!hit){let ba=1e12;for(const g in bbs){if(g==='tacche')continue;const b=bbs[g];if(mx>=b.x0-1&&mx<=b.x1+1&&my>=b.y0-1&&my<=b.y1+1){const a=(b.x1-b.x0)*(b.y1-b.y0);if(a<ba){ba=a;hit=g;}}}}
     sel=hit;
     if(!hit){view(false);return;}
@@ -375,7 +388,7 @@ function card(parent,tp,E){
     else{const k0=Math.max((drag.mx-drag.b0.x)/drag.w,(drag.my-drag.b0.y)/drag.h,0.05),k1=Math.max((mx-drag.b0.x)/drag.w,(my-drag.b0.y)/drag.h,0.05);const ns=Math.max(0.4,Math.min(4,drag.s*k1/k0)),ra=ns/drag.s;t.s=ns;t.dx=drag.b0.x-drag.off[0]*ra-drag.cr[0];t.dy=drag.b0.y-drag.off[1]*ra-drag.cr[1];}
     rs.hidden=false;view(false);
   });
-  const endDrag=()=>{if(!drag)return;drag=null;view(true);};
+  const endDrag=()=>{if(!drag)return;drag=null;upd();};
   cv.addEventListener('pointerup',endDrag);cv.addEventListener('pointercancel',endDrag);
   go.onclick=()=>{if(!cur)return;$('pvOv').hidden=true;document.body.style.overflow='';E.startJob(cur,tp.name);};
   dl.onclick=()=>{if(!cur)return;const b=new Blob([cur.lines.join('\n')+'\n'],{type:'text/plain'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='laserbrio-prova-'+tp.id+'.gcode';a.click();};
@@ -516,7 +529,8 @@ async function scan(src){   // legge il QR e dove sono i suoi tre angoli nella f
   return text?{text,cor,fin}:null;
 }
 /* guarda la foto: quanto è scuro ogni quadrato di incisione rispetto al legno che ha intorno */
-function analyse(src,sc,G){
+function analyse(src,sc,G,O){
+  O=(O&&O.length>=4&&O.every(isFinite))?O:[0,0,0,0];
   try{
     const [cs,cp,es,ep]=G,c=8,g=5,oy=26,ox2=16+cs.length*(c+g)+16,xq=ox2+es.length*(c+g)+6;
     const mod=0.8,Mn=QR.make([...new TextEncoder().encode(sc.text)]).length,s=Mn*mod,fo=3.5*mod;
@@ -535,7 +549,7 @@ function analyse(src,sc,G){
     const avg=a=>{const v=a.filter(x=>x!=null);return v.length?v.reduce((p,q)=>p+q,0)/v.length:null;};
     const dark=[];
     ep.forEach((pc,j)=>{dark.push([]);es.forEach((v,i)=>{
-      const x=ox2+i*(c+g),y=oy+j*(c+g),inn=[],out=[];
+      const x=ox2+i*(c+g)+O[0],y=oy+j*(c+g)+O[1],inn=[],out=[];
       for(let p=0;p<5;p++)for(let q=0;q<5;q++)inn.push(lum(x+1.5+p*1.25,y+1.5+q*1.25));
       for(let p=0;p<5;p++){const t=1.5+p*1.25;out.push(lum(x+t,y-1.3),lum(x+t,y+c+1.3),lum(x-1.3,y+t),lum(x+c+1.3,y+t));}
       const li=avg(inn),lo=avg(out);
@@ -546,8 +560,8 @@ function analyse(src,sc,G){
     const k=Math.min(1,720/W),cv=document.createElement('canvas');cv.width=Math.round(W*k);cv.height=Math.round(H*k);
     const x=cv.getContext('2d');x.drawImage(src,0,0,cv.width,cv.height);x.lineWidth=2;x.font='bold 13px sans-serif';
     const box=(x0,y0,w,h,col)=>{x.strokeStyle=col;x.beginPath();[[x0,y0],[x0+w,y0],[x0+w,y0+h],[x0,y0+h]].forEach((p,i)=>{const q=f(p[0],p[1]);i?x.lineTo(q[0]*k,q[1]*k):x.moveTo(q[0]*k,q[1]*k);});x.closePath();x.stroke();};
-    cp.forEach((pc,j)=>cs.forEach((v,i)=>box(16+i*(c+g),oy+j*(c+g),c,c,'#1f6feb')));
-    ep.forEach((pc,j)=>es.forEach((v,i)=>{box(ox2+i*(c+g),oy+j*(c+g),c,c,'#19a974');const q=f(ox2+i*(c+g)+1,oy+j*(c+g)+c/2);x.fillStyle='#19a974';x.fillText(Math.round(dark[j][i]*100)+'%',q[0]*k,q[1]*k);}));
+    cp.forEach((pc,j)=>cs.forEach((v,i)=>box(16+i*(c+g)+O[2],oy+j*(c+g)+O[3],c,c,'#1f6feb')));
+    ep.forEach((pc,j)=>es.forEach((v,i)=>{box(ox2+i*(c+g)+O[0],oy+j*(c+g)+O[1],c,c,'#19a974');const q=f(ox2+i*(c+g)+O[0]+1,oy+j*(c+g)+O[1]+c/2);x.fillStyle='#19a974';x.fillText(Math.round(dark[j][i]*100)+'%',q[0]*k,q[1]*k);}));
     return {dark,ov:cv.toDataURL('image/jpeg',0.6)};
   }catch(e){return null;}
 }
@@ -559,7 +573,7 @@ async function readScheda(src,msgEl){
   let q=null;try{q=new URL(txt).searchParams;}catch(e){}
   if(!q||!q.get('m')){msgEl.style.color='var(--bad)';msgEl.textContent='Questo QR non è di una scheda laserBrio.';return;}
   $('pvOv').hidden=true;document.body.style.overflow='';
-  const G=q.get('g')?parseG(q.get('g')):[],an=(G.length>=4&&G.every(a=>a.length))?analyse(src,sc,G):null;
+  const G=q.get('g')?parseG(q.get('g')):[],an=(G.length>=4&&G.every(a=>a.length))?analyse(src,sc,G,String(q.get('o')||'').split(',').map(Number)):null;
   window.Lb.material({m:q.get('m'),s:q.get('s'),g:q.get('g'),c:q.get('c'),i:q.get('i'),a:an&&an.dark,ov:an&&an.ov,p:q.get('p'),h:q.get('h')});
 }
 function fromFile(f,msgEl){

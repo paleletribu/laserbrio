@@ -108,7 +108,7 @@ const T=[
   desc:'Un foglio solo da incidere su ogni nuovo legno e da conservare: nome, spessore e data, quadratini di taglio e di incisione, fuoco, tacche sul lato per provare gli incastri, piegature e un QR. Dopo l\'incisione fotografa il foglio col QR: laserBrio ti guida a scegliere i valori giusti e li ricorda.',
   par:[['cs','Taglio: velocità (mm/min)','150,250,400'],['cp','Taglio: potenze (%)','70,85,100'],['es','Incisione: velocità (mm/min)','1500,2500,3500'],['ep','Incisione: potenze (%)','15,30,45'],
        ['fp','Fuoco: potenza (%)','30'],['fs','Fuoco: velocità','1500'],['step','Incastro: passo delle fessure (mm)','0.1'],
-       ['qp','Potenza di scritte e QR (%)','30'],['hg','Piegatura: distanza tra le righe (mm)','1.5,2,3'],['cont','Taglia il contorno (si/no)','si']],
+       ['qp','Potenza di scritte e QR (%)','30'],['hg','Piegatura: distanza tra le righe (mm)','2,2.75,3.5'],['cont','Taglia il contorno (si/no)','si']],
   gen(p,E){
     const cs=nums(p.cs).slice(0,5),cp=nums(p.cp).slice(0,5),es=nums(p.es).slice(0,5),ep=nums(p.ep).slice(0,5);
     if(!cs.length||!cp.length||!es.length||!ep.length)return [];
@@ -135,7 +135,7 @@ const T=[
     const gb=oy+Math.max(cp.length,ep.length)*(c+g);
     const xq=ox2+es.length*(c+g)+6;
     const hgs=nums(p.hg).filter(v=>v>=0.5&&v<=8).slice(0,3);
-    const hp=hgs.length?hgs.map(v=>['R',v]).concat(['O','L','Z'].map(t=>[t,hgs[1]||hgs[0]])):[];
+    const hp=hgs.map(v=>['R',v]).concat(hgs.map(v=>['L',v]));
     const url='https://paleletribu.github.io/laserbrio/?m='+encodeURIComponent(nome)+(sp?'&s='+encodeURIComponent(sp):'')+'&g='+[cs,cp,es,ep].map(a=>a.join(',')).join('_')+'&p='+(+p.step||0.1)+(hp.length?'&h='+hp.map(a=>a[0]+a[1]).join(','):'');
     const q=qrOps(url,xq,4,0.8,qp,F);ops.push(...q.ops);
     // fuoco: 6 linee sotto il QR
@@ -160,20 +160,19 @@ const T=[
     const yT=cy(2)+5+10;tit('Scritte (altezza in mm)',xr,yT-5);let yt=yT;
     [1.5,2,2.5,3,3.5,4].forEach(hh=>{ops.push(...textOps('Prova '+hh,xr,yt,hh,qp,F,0.15,'600').ops);yt+=hh+2.6;});
     // piegature: 6 linguette attaccate al foglio (tagliate su 3 lati), con le righe che arrivano quasi ai bordi
-    const NAME={R:'Righe',O:'Onde',L:'Lenti',Z:'Zigzag'},W0=Math.max(xs,xq+q.size+4),y3=Math.max(y2+6,yt+4),th=40,pcol=(W0-4)/6,pw=pcol-4;
+    const NAME={R:'Righe',L:'Lenti'},W0=Math.max(xs,xq+q.size+4),y3=Math.max(y2+6,yt+4),th=54,pcol=(W0-4)/6,pw=pcol-4;
     tit('Piegature (piega le linguette piano con le mani)',4,y3-5);
     hp.forEach(([ty,pt],i)=>{
       const x0=4+i*pcol,y0=y3+7,by=y0+8,bh=th-8-10;
       tit(NAME[ty]+' · '+pt+' mm',x0,y0-4.6,2.1);
-      const n=Math.floor(bh/pt)+1,yc=by+(bh-(n-1)*pt)/2,iw=pw-3,Ls=ty==='L'?16:14,gp=ty==='L'?3:2.5,P=Ls+gp,X=x0+1.5;
+      // righe dritte (come i modelli di cerniera classici): tratti da bordo a bordo, sfalsati di mezzo passo; lenti: stesso schema con tagli a lente
+      const n=Math.floor(bh/pt)+1,yc=by+(bh-(n-1)*pt)/2,iw=pw,X=x0,lens=ty==='L',gp=lens?2.5:2.4,Ls=lens?14:pw/2.5-gp,P=Ls+gp,hw=Math.min(0.4*pt,1.1);
       for(let r=0;r<n;r++){
         const y=yc+r*pt;
-        for(let a=(r%2?-P/2:0);a<iw;a+=P){
-          const s0=Math.max(a,0),s1=Math.min(a+Ls,iw);if(s1-s0<(ty==='L'?6:2))continue;
+        for(let a=(r%2?-P/2:0);a<iw-0.01;a+=P){
+          const s0=Math.max(a,0),s1=Math.min(a+Ls,iw);if(s1-s0<(lens?6:1.5))continue;
           let pts,closed=false;
-          if(ty==='O'){pts=[];for(let x=s0;x<=s1+1e-6;x+=0.5)pts.push([X+x,y+0.7*Math.sin((x-s0)*2*Math.PI/5)]);}
-          else if(ty==='Z'){pts=[];let k=0;for(let x=s0;x<s1-0.01;x+=2,k++)pts.push([X+x,y+(k%2?0.7:-0.7)]);pts.push([X+s1,y]);}
-          else if(ty==='L'){closed=true;const m=Math.max(6,Math.round((s1-s0)/0.7)),up=[],dn=[];for(let k=0;k<=m;k++){const x=s0+(s1-s0)*k/m,hh=0.75*Math.sin(Math.PI*k/m);up.push([X+x,y-hh]);dn.push([X+x,y+hh]);}pts=up.concat(dn.reverse());}
+          if(lens){closed=true;const m=Math.max(6,Math.round((s1-s0)/0.7)),up=[],dn=[];for(let k=0;k<=m;k++){const x=s0+(s1-s0)*k/m,hh=hw*Math.sin(Math.PI*k/m);up.push([X+x,y-hh]);dn.push([X+x,y+hh]);}pts=up.concat(dn.reverse());}
           else pts=[[X+s0,y],[X+s1,y]];
           cuts.push({k:'cut',pts,closed,pct:co.pct,F:co.F,passes:co.passes});
         }
@@ -397,8 +396,8 @@ function picker(box,d,full){
   if(hl.length){
     const s4=el('div','st');
     el('div','sh','<span class="n">4</span><b>Piegatura</b>',s4);
-    el('div','rule','Tocca il rettangolo che <strong>si piega di più</strong> senza spaccarsi né incrinarsi. Sono 4 tipi di righe: provali tutti.',s4);
-    el('details',null,'<summary>Come lo provo?</summary>Ogni linguetta resta attaccata al foglio: piegala piano con le mani e guarda come regge. Più le righe sono vicine più il legno si piega, ma si indebolisce. Righe = tratti corti sfalsati (il classico), Onde = tratti ondulati, Lenti = tagli a forma di lente (il classico delle cerniere, molto morbido), Zigzag = tratti a denti. Scegli il più morbido che regge senza rompersi. Il numero è la distanza tra le righe in mm.',s4);
+    el('div','rule','Tocca il rettangolo che <strong>si piega di più</strong> senza spaccarsi né incrinarsi. Ci sono righe dritte e lenti, ognuna con 3 distanze: provale tutte.',s4);
+    el('details',null,'<summary>Come lo provo?</summary>Ogni linguetta resta attaccata al foglio: piegala piano con le mani e guarda come regge. Più le righe sono vicine più il legno si piega, ma si indebolisce. Righe = tratti dritti sfalsati (il classico), Lenti = tagli a forma di lente (più morbido e più elegante). Scegli il più morbido che regge senza rompersi. Il numero è la distanza tra le righe in mm.',s4);
     row(s4,hl.map(x=>[NM[x.t],x.v+' mm',x]),x=>{selH=x;});
   }
   // ---- riepilogo + salva ----

@@ -203,12 +203,20 @@ const T=[
   fin(all,xf,p,E){   // applica gli spostamenti/ingrandimenti dei pezzi, poi disegna il contorno attorno a tutto
     const co=E.cut(),ext=(o,fn)=>{if(o.k==='run'){fn(o.x0,o.y);fn(o.x1,o.y);}else if(o.k==='fill'){fn(o.x,o.y);fn(o.x+o.w,o.y+o.h);}else o.pts.forEach(q=>fn(q[0],q[1]));};
     const bb=gbox(all);
+    const TT={};
+    for(const g in (xf||{})){
+      const t=xf[g],b=bb[g];if(!t||!b||g==='tacche')continue;
+      const sc=t.s||1,r=(g==='base'?0:(t.r||0))*Math.PI/180,cs=Math.cos(r),sn=Math.sin(r),cx=(b.x0+b.x1)/2,cy=(b.y0+b.y1)/2;
+      const f=(x,y)=>{const u=(x-cx)*sc,v=(y-cy)*sc;return [cx+cs*u-sn*v,cy+sn*u+cs*v];};
+      let mnx=1e9,mny=1e9;all.forEach(o=>{if(o.g===g)ext(o,(x,y)=>{const q=f(x,y);if(q[0]<mnx)mnx=q[0];if(q[1]<mny)mny=q[1];});});
+      TT[g]={f,sc,rot:Math.abs(r)>1e-6,dx:Math.max(t.dx||0,19-mnx),dy:Math.max(t.dy||0,2-mny)};
+    }
     const out=all.map(o=>{
-      const t=xf&&xf[o.g],b=bb[o.g];if(!t||!b||o.g==='tacche')return o;
-      const sc=t.s||1,dx=Math.max(t.dx||0,19-b.x0),dy=Math.max(t.dy||0,2-b.y0),tx=x=>b.x0+(x-b.x0)*sc+dx,ty=y=>b.y0+(y-b.y0)*sc+dy,c=Object.assign({},o);
-      if(o.k==='run'){c.x0=tx(o.x0);c.x1=tx(o.x1);c.y=ty(o.y);c.iv=(o.iv||0)*sc;}
-      else if(o.k==='fill'){c.x=tx(o.x);c.y=ty(o.y);c.w=o.w*sc;c.h=o.h*sc;}
-      else c.pts=o.pts.map(q=>[tx(q[0]),ty(q[1])]);
+      const T_=TT[o.g];if(!T_)return o;
+      const c=Object.assign({},o),m=(x,y)=>{const q=T_.f(x,y);return [q[0]+T_.dx,q[1]+T_.dy];};
+      if(o.k==='run'){const p0=m(o.x0,o.y),p1=m(o.x1,o.y);if(T_.rot){c.k='line';c.pts=[p0,p1];delete c.x0;delete c.x1;delete c.y;}else{c.x0=p0[0];c.x1=p1[0];c.y=p0[1];}c.iv=(o.iv||0)*T_.sc;}
+      else if(o.k==='fill'){const p0=m(o.x,o.y);c.x=p0[0];c.y=p0[1];c.w=o.w*T_.sc;c.h=o.h*T_.sc;}
+      else c.pts=o.pts.map(q=>m(q[0],q[1]));
       return c;
     });
     let mx=0,my=0;out.forEach(o=>ext(o,(x,y)=>{if(x>mx)mx=x;if(y>my)my=y;}));
@@ -310,9 +318,11 @@ function card(parent,tp,E){
   let cur=null,raw=null,xf={},sel=null,edit=false,bbs={};
   const ed=document.createElement('button');ed.className='btn';ed.textContent='Sposta e ridimensiona i pezzi';ed.style.marginTop='6px';
   const rs=document.createElement('button');rs.className='btn';rs.textContent='Rimetti come prima';rs.style.marginTop='6px';rs.hidden=true;
-  const hint=document.createElement('div');hint.className='hint';hint.hidden=true;hint.textContent='Trascina un pezzo per spostarlo. Con il pezzo scelto, trascina il pallino in basso a destra per ingrandirlo o rimpicciolirlo. Il foglio si adatta da solo. La parte con nome, Taglio, Incisione e QR si sposta ma non si ridimensiona (altrimenti non si legge più dalla foto).';
-  c.insertBefore(ed,cv);c.insertBefore(rs,cv);c.insertBefore(hint,cv);
-  ed.onclick=()=>{edit=!edit;sel=null;ed.textContent=edit?'Fatto: smetti di spostare':'Sposta e ridimensiona i pezzi';hint.hidden=!edit;cv.style.touchAction=edit?'none':'';cv.style.cursor=edit?'move':'';view(false);};
+  const rot=document.createElement('button');rot.className='btn';rot.textContent='Ruota di 90°';rot.style.marginTop='6px';rot.hidden=true;
+  const hint=document.createElement('div');hint.className='hint';hint.hidden=true;hint.textContent='Trascina un pezzo per spostarlo. Con il pezzo scelto, trascina il pallino in basso a destra per ingrandirlo o rimpicciolirlo, quello in alto per ruotarlo liberamente (oppure usa Ruota di 90°). Il foglio si adatta da solo. La parte con nome, Taglio, Incisione e QR si sposta ma non si ridimensiona (altrimenti non si legge più dalla foto).';
+  c.insertBefore(ed,cv);c.insertBefore(rot,cv);c.insertBefore(rs,cv);c.insertBefore(hint,cv);
+  rot.onclick=()=>{if(!sel||sel==='base')return;const t=xf[sel]||(xf[sel]={dx:0,dy:0,s:1,r:0});t.r=(Math.round(((t.r||0)+90)/90)*90)%360;rs.hidden=false;view(true);};
+  ed.onclick=()=>{edit=!edit;sel=null;rot.hidden=!edit;ed.textContent=edit?'Fatto: smetti di spostare':'Sposta e ridimensiona i pezzi';hint.hidden=!edit;cv.style.touchAction=edit?'none':'';cv.style.cursor=edit?'move':'';view(false);};
   rs.onclick=()=>{xf={};sel=null;rs.hidden=true;view(true);};
   const NAMEG={base:'Intestazione, Taglio, Incisione e QR',forme:'Forme piccole',scritte:'Scritte'};
   function overlay(ops,bd){
@@ -322,7 +332,7 @@ function card(parent,tp,E){
     for(const g in bbs){if(g==='tacche'||g==='contorno')continue;const b=bbs[g],on=g===sel;
       x.strokeStyle=on?'#1f6feb':'rgba(31,111,235,.45)';x.setLineDash(on?[]:[6,4]);
       x.strokeRect(15+b.x0*k-3,15+b.y0*k-3,(b.x1-b.x0)*k+6,(b.y1-b.y0)*k+6);
-      if(on&&g!=='base'){x.fillStyle='#1f6feb';x.beginPath();x.arc(15+b.x1*k+3,15+b.y1*k+3,8,0,7);x.fill();}
+      if(on&&g!=='base'){x.fillStyle='#1f6feb';x.beginPath();x.arc(15+b.x1*k+3,15+b.y1*k+3,8,0,7);x.fill();x.beginPath();x.moveTo(15+(b.x0+b.x1)/2*k,15+b.y0*k-3);x.lineTo(15+(b.x0+b.x1)/2*k,15+b.y0*k-20);x.stroke();x.beginPath();x.arc(15+(b.x0+b.x1)/2*k,15+b.y0*k-22,8,0,7);x.fill();}
     }
     x.restore();
   }
@@ -350,17 +360,19 @@ function card(parent,tp,E){
   cv.addEventListener('pointerdown',e=>{
     if(!edit)return;const [mx,my]=pt(e),k=cv._k||1;let hit=null,mode='move';
     if(sel&&sel!=='base'&&bbs[sel]){const b=bbs[sel];if(Math.hypot((mx-b.x1)*k-3,(my-b.y1)*k-3)<14){hit=sel;mode='scale';}}
+    if(!hit&&sel&&sel!=='base'&&bbs[sel]){const b=bbs[sel];if(Math.hypot((mx-(b.x0+b.x1)/2)*k,(my-b.y0)*k+22)<14){hit=sel;mode='rot';}}
     if(!hit){let ba=1e12;for(const g in bbs){if(g==='tacche')continue;const b=bbs[g];if(mx>=b.x0-1&&mx<=b.x1+1&&my>=b.y0-1&&my<=b.y1+1){const a=(b.x1-b.x0)*(b.y1-b.y0);if(a<ba){ba=a;hit=g;}}}}
     sel=hit;
     if(!hit){view(false);return;}
-    const t=xf[hit]||(xf[hit]={dx:0,dy:0,s:1}),b=bbs[hit];
-    drag={g:hit,mode,mx,my,dx:t.dx,dy:t.dy,s:t.s,w:Math.max(b.x1-b.x0,1),h:Math.max(b.y1-b.y0,1),b0:{x:b.x0,y:b.y0}};
+    const t=xf[hit]||(xf[hit]={dx:0,dy:0,s:1,r:0}),b=bbs[hit],br=gbox(raw)[hit],cr=[(br.x0+br.x1)/2,(br.y0+br.y1)/2],C0=[cr[0]+t.dx,cr[1]+t.dy];
+    drag={g:hit,mode,mx,my,dx:t.dx,dy:t.dy,s:t.s,r:t.r||0,cr,C0,a0:Math.atan2(my-C0[1],mx-C0[0]),off:[b.x0-C0[0],b.y0-C0[1]],w:Math.max(b.x1-b.x0,1),h:Math.max(b.y1-b.y0,1),b0:{x:b.x0,y:b.y0}};
     cv.setPointerCapture(e.pointerId);e.preventDefault();view(false);
   });
   cv.addEventListener('pointermove',e=>{
     if(!drag)return;const [mx,my]=pt(e),t=xf[drag.g];
     if(drag.mode==='move'){t.dx=drag.dx+(mx-drag.mx);t.dy=drag.dy+(my-drag.my);}
-    else{const k0=Math.max((drag.mx-drag.b0.x)/drag.w,(drag.my-drag.b0.y)/drag.h,0.05),k1=Math.max((mx-drag.b0.x)/drag.w,(my-drag.b0.y)/drag.h,0.05);t.s=Math.max(0.4,Math.min(4,drag.s*k1/k0));}
+    else if(drag.mode==='rot'){let r=drag.r+(Math.atan2(my-drag.C0[1],mx-drag.C0[0])-drag.a0)*180/Math.PI;r=Math.round(r/5)*5;if(Math.abs(r/90-Math.round(r/90))<0.06)r=Math.round(r/90)*90;t.r=((r%360)+360)%360;}
+    else{const k0=Math.max((drag.mx-drag.b0.x)/drag.w,(drag.my-drag.b0.y)/drag.h,0.05),k1=Math.max((mx-drag.b0.x)/drag.w,(my-drag.b0.y)/drag.h,0.05);const ns=Math.max(0.4,Math.min(4,drag.s*k1/k0)),ra=ns/drag.s;t.s=ns;t.dx=drag.b0.x-drag.off[0]*ra-drag.cr[0];t.dy=drag.b0.y-drag.off[1]*ra-drag.cr[1];}
     rs.hidden=false;view(false);
   });
   const endDrag=()=>{if(!drag)return;drag=null;view(true);};

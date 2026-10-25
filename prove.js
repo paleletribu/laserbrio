@@ -155,19 +155,18 @@ const T=[
       cuts.push({k:'cut',pts:[[x,y2],[x+22,y2],[x+22,y2+12],[m+h2,y2+12],[m+h2,y2+17],[m-h2,y2+17],[m-h2,y2+12],[x,y2+12]],closed:true,pct:co.pct,F:co.F,passes:co.passes});
     }
     // colonna a destra: forme piccole e scritte (riempie lo spazio accanto al QR)
-    const xr=Math.max(xq+q.size,px0+87)+8,SZ=[1,2,3,4,5,6,8,10],yS=17;let xs=xr;
-    tit('Forme piccole (mm)',xr,4);
-    SZ.forEach(v=>{
-      nl(v,xs+v/2,10.5,'c');
-      const cx=xs+v/2,r=v/2,pc=[],ph2=[];
-      for(let k=0;k<24;k++){const a=k*Math.PI/12;pc.push([cx+r*Math.cos(a),yS+r+r*Math.sin(a)]);}
-      for(let k=0;k<6;k++){const a=k*Math.PI/3;ph2.push([cx+r*Math.cos(a),yS+13+r+r*Math.sin(a)]);}
-      cuts.push({k:'cut',pts:pc,closed:true,pct:co.pct,F:co.F,passes:co.passes});
-      cuts.push({k:'cut',pts:ph2,closed:true,pct:co.pct,F:co.F,passes:co.passes});
-      cuts.push({k:'cut',pts:rect(xs,yS+26,v,v),closed:true,pct:co.pct,F:co.F,passes:co.passes});
-      xs+=v+4;
-    });
-    const yT=yS+26+10+10;tit('Scritte (altezza in mm)',xr,yT-5);let yt=yT;
+    const xr=Math.max(xq+q.size,px0+87)+8,SZ=[1,2,3,4,5,6,8,10],yS=17,SD=SZ.slice().reverse();
+    const lay=a=>{let x=xr;return a.map(v=>{const o=x;x+=v+4;return [o,o+v,v];});};
+    const rA=lay(SZ),rD=lay(SD),xs=xr+SZ.reduce((u,v)=>u+v+4,0);
+    // il passo tra le file è il minimo che evita le sovrapposizioni (la fila centrale è in ordine inverso, così le forme si incastrano)
+    const need=(p1,p2)=>{let m=0;p1.forEach(u=>p2.forEach(w=>{if(u[0]<w[1]+1.5&&w[0]<u[1]+1.5)m=Math.max(m,(u[2]+w[2])/2+3);}));return m;};
+    const PR=Math.max(need(rA,rD),need(rD,rA),9);
+    tit('Forme piccole (mm) · esagoni in ordine inverso',xr,4);
+    rA.forEach(([x0,x1,v])=>nl(v,(x0+x1)/2,10.5,'c'));
+    const cy=k=>yS+5+k*PR,circ=(cx,cyy,r,n,a0)=>{const o=[];for(let k=0;k<n;k++){const a=a0+k*2*Math.PI/n;o.push([cx+r*Math.cos(a),cyy+r*Math.sin(a)]);}return o;};
+    rA.forEach(([x0,x1,v])=>{cuts.push({k:'cut',pts:circ((x0+x1)/2,cy(0),v/2,24,0),closed:true,pct:co.pct,F:co.F,passes:co.passes});cuts.push({k:'cut',pts:rect(x0,cy(2)-v/2,v,v),closed:true,pct:co.pct,F:co.F,passes:co.passes});});
+    rD.forEach(([x0,x1,v])=>cuts.push({k:'cut',pts:circ((x0+x1)/2,cy(1),v/2,6,0),closed:true,pct:co.pct,F:co.F,passes:co.passes}));
+    const yT=cy(2)+5+10;tit('Scritte (altezza in mm)',xr,yT-5);let yt=yT;
     [1.5,2,2.5,3,3.5,4].forEach(hh=>{ops.push(...textOps('Prova '+hh,xr,yt,hh,qp,F,0.15,'600').ops);yt+=hh+2.6;});
     // piegature: 6 linguette attaccate al foglio (tagliate su 3 lati), con le righe che arrivano quasi ai bordi
     const NAME={R:'Righe',O:'Onde',L:'Lenti',Z:'Zigzag'},W0=Math.max(xs,xq+q.size+4),y3=Math.max(y2+34,yt+4),th=40,pcol=(W0-4)/6,pw=pcol-4;

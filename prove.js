@@ -105,9 +105,9 @@ const LAB=12;   // potenza delle scritte (incisione leggera)
 const parseG=str=>String(str||'').split('_').map(g=>nums(g.replace(/,/g,' ')));
 const T=[
  {id:'scheda',name:'Scheda di prova (un foglio solo)',
-  desc:'Un foglio solo da incidere su ogni nuovo legno e da conservare: nome, spessore e data, quadratini di taglio e di incisione, scala di grigi, fuoco, incastri e un QR. Dopo l\'incisione fotografa il foglio col QR: laserBrio ti guida a scegliere i valori giusti e li ricorda.',
+  desc:'Un foglio solo da incidere su ogni nuovo legno e da conservare: nome, spessore e data, quadratini di taglio e di incisione, fuoco, fessure con pannellini da incastrare, piegature e un QR. Dopo l\'incisione fotografa il foglio col QR: laserBrio ti guida a scegliere i valori giusti e li ricorda.',
   par:[['cs','Taglio: velocità (mm/min)','150,250,400'],['cp','Taglio: potenze (%)','70,85,100'],['es','Incisione: velocità (mm/min)','1500,2500,3500'],['ep','Incisione: potenze (%)','15,30,45'],
-       ['rmin','Scala di grigi: da (%)','5'],['rmax','Scala di grigi: a (%)','50'],['rs','Scala di grigi: velocità','2000'],['fp','Fuoco: potenza (%)','30'],['fs','Fuoco: velocità','1500'],['step','Incastro: passo delle fessure (mm)','0.1'],
+       ['fp','Fuoco: potenza (%)','30'],['fs','Fuoco: velocità','1500'],['step','Incastro: passo delle fessure (mm)','0.1'],
        ['qp','Potenza di scritte e QR (%)','30'],['hg','Piegatura: distanza tra le righe (mm)','1.5,2,3'],['cont','Taglia il contorno (si/no)','si']],
   gen(p,E){
     const cs=nums(p.cs).slice(0,5),cp=nums(p.cp).slice(0,5),es=nums(p.es).slice(0,5),ep=nums(p.ep).slice(0,5);
@@ -141,21 +141,21 @@ const T=[
     // fuoco: 6 linee sotto il QR
     const yf=4+q.size+6,fp=Math.min(100,+p.fp||30),fs=+p.fs||1500;
     for(let i=0;i<6;i++){ops.push({k:'line',pts:[[xq+6,yf+i*5],[xq+q.size,yf+i*5]],pct:fp,F:fs});nl(i+1,xq,yf+i*5-1.2,'l');}
-    // riga 2: scala di grigi e fessure
-    const y2=Math.max(gb+5,yf+6*5+1),a0=Math.max(1,+p.rmin||5),a1=Math.min(100,+p.rmax||50);
-    for(let i=0;i<6;i++){
-      const pc=Math.round(a0+(a1-a0)*i/5),x=4+i*11;
-      ops.push({k:'fill',x,y:y2,w:8,h:14,pct:pc,F:+p.rs||2000,iv:0.1});
-      nl(pc,x+4,y2+16,'c');
-    }
-    const co=E.cut(),sx=4+6*11+10;tit('Grigi',4,y2-4.5);tit('Incastri',sx,y2-4.5);tit('Fuoco',xq,yf-4.5);const st=Math.max(0.02,+p.step||0.1);
+    // riga 2: fessure e pannellini da incastrare (la linguetta è larga quanto lo spessore scritto)
+    const y2=Math.max(gb+5,yf+6*5+1);
+    const co=E.cut(),sx=4;tit('Incastri: prova la linguetta in ogni fessura',sx,y2-4.5);tit('Fuoco',xq,yf-4.5);const st=Math.max(0.02,+p.step||0.1);
     for(let i=0;i<7;i++){
       const w=t+(i-3)*st,x=sx+i*9+(9-w)/2,lab=String(Math.round(w*100)/100);
-      nl(lab,sx+i*9+4.5,y2+16,'c');
+      nl(lab,sx+i*9+4.5,y2+19.5,'c');
       cuts.push({k:'cut',pts:rrect(x,y2,w,12,Math.min(1,w/2-0.1)),closed:true,pct:co.pct,F:co.F,passes:co.passes});
     }
+    const px0=sx+7*9+10;tit('Pannellini',px0,y2-4.5);
+    for(let k=0;k<3;k++){
+      const x=px0+k*29,m=x+11,h2=t/2;
+      cuts.push({k:'cut',pts:[[x,y2],[x+22,y2],[x+22,y2+12],[m+h2,y2+12],[m+h2,y2+17],[m-h2,y2+17],[m-h2,y2+12],[x,y2+12]],closed:true,pct:co.pct,F:co.F,passes:co.passes});
+    }
     // colonna a destra: forme piccole e scritte (riempie lo spazio accanto al QR)
-    const xr=Math.max(xq+q.size,sx+63)+8,SZ=[1,2,3,4,5,6,8,10],yS=17;let xs=xr;
+    const xr=Math.max(xq+q.size,px0+87)+8,SZ=[1,2,3,4,5,6,8,10],yS=17;let xs=xr;
     tit('Forme piccole (mm)',xr,4);
     SZ.forEach(v=>{
       nl(v,xs+v/2,10.5,'c');
@@ -170,7 +170,7 @@ const T=[
     const yT=yS+26+10+10;tit('Scritte (altezza in mm)',xr,yT-5);let yt=yT;
     [1.5,2,2.5,3,3.5,4].forEach(hh=>{ops.push(...textOps('Prova '+hh,xr,yt,hh,qp,F,0.15,'600').ops);yt+=hh+2.6;});
     // piegature: 6 linguette attaccate al foglio (tagliate su 3 lati), con le righe che arrivano quasi ai bordi
-    const NAME={R:'Righe',O:'Onde',L:'Lenti',Z:'Zigzag'},W0=Math.max(xs,xq+q.size+4),y3=Math.max(y2+30,yt+4),th=40,pcol=(W0-4)/6,pw=pcol-4;
+    const NAME={R:'Righe',O:'Onde',L:'Lenti',Z:'Zigzag'},W0=Math.max(xs,xq+q.size+4),y3=Math.max(y2+34,yt+4),th=40,pcol=(W0-4)/6,pw=pcol-4;
     tit('Piegature (piega le linguette piano con le mani)',4,y3-5);
     hp.forEach(([ty,pt],i)=>{
       const x0=4+i*pcol,y0=y3+7,by=y0+8,bh=th-8-10;
@@ -190,7 +190,7 @@ const T=[
       }
       cuts.push({k:'cut',pts:[[x0,y0],[x0,y0+th],[x0+pw,y0+th],[x0+pw,y0]],closed:false,pct:co.pct,F:co.F,passes:co.passes});
     });
-    const W=Math.max(xq+q.size+4,sx+63+4,t1.w+8,W0+2),H=Math.max(y2+24,yf+30+2,y3+7+th+6,yt+2);
+    const W=Math.max(xq+q.size+4,px0+87+4,t1.w+8,W0+2),H=Math.max(y2+26,yf+30+2,y3+7+th+6,yt+2);
     const all=ops.concat(cuts);
     if(!/^n/i.test(String(p.cont).trim()))all.push({k:'cut',pts:rrect(0,0,W,H,4),closed:true,pct:co.pct,F:co.F,passes:co.passes});
     return all;}}
@@ -389,7 +389,7 @@ function picker(box,d,full){
   const s3=el('div','st');
   el('div','sh','<span class="n">3</span><b>Incastri</b>',s3);
   el('div','rule','Tocca la fessura in cui il legno <strong>entra a pressione con le dita</strong>, senza gioco e senza forzare.',s3);
-  el('details',null,'<summary>Come lo provo?</summary>Togli i pezzetti caduti dalle 7 fessure. Prendi un ritaglio dello stesso legno e infilalo <b>di costa</b> in ogni fessura, dalla più stretta alla più larga. Quella giusta lo tiene fermo ma lo lascia entrare con una piccola spinta: se entra da solo è troppo larga, se devi martellare è troppo stretta. Il numero è la larghezza della fessura in mm: è lo spessore vero del tuo legno, che spesso non è quello scritto sulla confezione.',s3);
+  el('details',null,'<summary>Come lo provo?</summary>Stacca i 3 pannellini dal foglio (hanno una linguetta larga come lo spessore scritto) e togli i pezzetti caduti dalle 7 fessure. Infila la linguetta <b>di costa</b> in ogni fessura, dalla più stretta alla più larga. Quella giusta la tiene ferma ma la lascia entrare con una piccola spinta: se entra da sola è troppo larga, se devi martellare è troppo stretta. Il numero è la larghezza della fessura in mm: è lo spessore vero del tuo legno, che spesso non è quello scritto sulla confezione.',s3);
   row(s3,[0,1,2,3,4,5,6].map(i=>{const w=Math.round((tk+(i-3)*stp)*100)/100;return [w.toFixed(2),i===3?'nominale':(i<3?'stretta':'larga'),w];}),w=>{selS=w;});
   // ---- 4 PIEGATURA ----
   const NM={R:'Righe',O:'Onde',L:'Lenti',Z:'Zigzag'},hl=String(d.h||'').split(',').map(t=>{const m=String(t).match(/^([ROLZ])?([\d.]+)$/);return m?{t:m[1]||'R',v:+m[2]}:null;}).filter(x=>x&&x.v>0);

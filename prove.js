@@ -146,7 +146,7 @@ const T=[
     const co=E.cut(),sx=4;tit('Fuoco',xq,yf-4.5);const st=Math.max(0.02,+p.step||0.1);
     const px0=sx;
     // forme piccole (a sinistra) e scritte (a destra), in una fascia sotto la parte alta
-    const xr=4,yB=y2+8,SZ=[1,2,3,4,5,6,8,10],yS=yB+13,SD=SZ.slice().reverse();
+    const xr=xq+q.size+8,yB=4,SZ=[1,2,3,4,5,6,8,10],yS=yB+13,SD=SZ.slice().reverse();
     const lay=a=>{let x=xr;return a.map(v=>{const o=x;x+=v+4;return [o,o+v,v];});};
     const rA=lay(SZ),rD=lay(SD),xs=xr+SZ.reduce((u,v)=>u+v+4,0);
     // il passo tra le file è il minimo che evita le sovrapposizioni (la fila centrale è in ordine inverso, così le forme si incastrano)
@@ -161,10 +161,10 @@ const T=[
     [1.5,2,2.5,3,3.5,4].forEach(hh=>{ops.push(...textOps('Prova '+hh,xt,yt,hh,qp,F,0.15,'600').ops);yt+=hh+2.6;});
     const yE=Math.max(yt,cy(2)+5);
     // piegature: 6 linguette attaccate al foglio (tagliate su 3 lati), con le righe che arrivano quasi ai bordi
-    const NAME={R:'Righe',L:'Lenti'},W0=Math.max(xs+70,xq+q.size+4),xT=W0+8,th=44,pcol=46,pw=42,rowH=th+14;
-    tit('Piegature',xT,4);
+    const NAME={R:'Righe',L:'Lenti'},th=44,pcol=46,pw=42,yH=Math.max(y2,yE)+8;
+    tit('Piegature (piega le linguette piano con le mani)',4,yH);
     hp.forEach(([ty,pt],i)=>{
-      const x0=xT+Math.floor(i/3)*pcol,y0=16+(i%3)*rowH,by=y0+8,bh=th-8-10;
+      const x0=4+i*pcol,y0=yH+11,by=y0+8,bh=th-8-10;
       tit(NAME[ty]+' · '+pt+' mm',x0,y0-4.6,2.1);
       // righe dritte (come i modelli di cerniera classici): tratti da bordo a bordo, sfalsati di mezzo passo; lenti: stesso schema con tagli a lente
       const n=Math.floor(bh/pt)+1,yc=by+(bh-(n-1)*pt)/2,iw=pw,X=x0,lens=ty==='L',gp=lens?2.5:2.4,nn=3,Ls=(iw-(nn-1)*gp)/nn,P=Ls+gp,hw=Math.min(0.3*pt,1);
@@ -184,7 +184,7 @@ const T=[
       cuts.push({k:'cut',pts:[[x0,y0],[x0,y0+th],[x0+pw,y0+th],[x0+pw,y0]],closed:false,pct:co.pct,F:co.F,passes:co.passes});
     });
     const MG=19;
-    const W=xT+pcol+pw+4+MG,H=Math.max(yE+6,16+3*rowH-8);
+    const W=Math.max(xt+40,4+6*pcol)+MG,H=yH+11+th+6;
     // tutto il disegno si sposta a destra di MG mm; a sinistra restano le tacche aperte sul bordo (si liberano con il taglio del contorno)
     const mv=o=>{if(o.pts)o.pts=o.pts.map(p=>[p[0]+MG,p[1]]);if(o.x0!==undefined){o.x0+=MG;o.x1+=MG;}if(o.x!==undefined&&o.pts===undefined)o.x+=MG;};
     ops.forEach(mv);cuts.forEach(mv);

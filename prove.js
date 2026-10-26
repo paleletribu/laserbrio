@@ -168,7 +168,7 @@ const T=[
     rA.forEach(([x0,x1,v])=>{cuts.push({k:'cut',pts:circ((x0+x1)/2,cy(0),v/2,24,0),closed:true,pct:co.pct,F:co.F,passes:co.passes});cuts.push({k:'cut',pts:rect(x0,cy(2)-v/2,v,v),closed:true,pct:co.pct,F:co.F,passes:co.passes});});
     rD.forEach(([x0,x1,v])=>cuts.push({k:'cut',pts:circ((x0+x1)/2,cy(1),v/2,6,0),closed:true,pct:co.pct,F:co.F,passes:co.passes}));
     cg='scritte';
-    const xt=xs+10,yT=yB+7;tit('Scritte (altezza in mm)',xt,yB);let yt=yT;
+    const xt=xs+10,yT=yB+7;tit('Scritte (mm)',xt,yB);let yt=yT;
     [1.5,2,2.5,3,3.5,4].forEach(hh=>{ops.push(...textOps('Prova '+hh,xt,yt,hh,qp,F,0.15,'600').ops);yt+=hh+2.6;});
     const yE=Math.max(yt,cy(2)+5);
     // piegature: 6 linguette attaccate al foglio (tagliate su 3 lati), con le righe che arrivano quasi ai bordi

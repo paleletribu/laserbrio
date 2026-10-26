@@ -319,7 +319,7 @@ function card(parent,tp,E){
   const go=document.createElement('button');go.className='btn primary';go.textContent='Invia al laser';row.appendChild(go);
   const dl=document.createElement('button');dl.className='btn';dl.textContent='Scarica il G-code';row.appendChild(dl);
   const FIX=new Set(['taglio','incis','qr']);
-  let cur=null,raw=null,xf={},sel=null,edit=false,bbs={},kt=0;
+  let cur=null,raw=null,xf=(()=>{try{return JSON.parse(localStorage.getItem('lb_layout')||'{}')||{};}catch(e){return {};}})(),sel=null,edit=false,bbs={},kt=0;
   const ed=document.createElement('button');ed.className='btn';ed.textContent='Sposta e ridimensiona i pezzi';ed.style.marginTop='6px';
   const rs=document.createElement('button');rs.className='btn';rs.textContent='Rimetti come prima';rs.style.marginTop='6px';rs.hidden=true;
   const rot=document.createElement('button');rot.className='btn';rot.textContent='Ruota di 90°';rot.style.marginTop='6px';rot.hidden=true;
@@ -349,6 +349,7 @@ function card(parent,tp,E){
     x.restore();
   }
   function view(full){
+    try{localStorage.setItem('lb_layout',JSON.stringify(xf));}catch(e){}rs.hidden=!Object.keys(xf).length;
     try{
       if(!raw)throw new Error('Controlla i valori scritti.');
       const ops=tp.fin?tp.fin(raw,xf,val,E):raw,bd=bounds(ops);if(ops.eff)for(const g in ops.eff)if(xf[g]){xf[g].dx=ops.eff[g][0];xf[g].dy=ops.eff[g][1];}

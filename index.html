@@ -72,7 +72,7 @@ footer{margin-top:26px;text-align:center;color:var(--mute);font-size:13px;letter
 body.telmode main>*:not(#telPanel):not(h1):not(footer){display:none!important}
 #telVid{display:block;width:100%;height:auto;min-height:120px;border-radius:10px;background:#111;margin:10px 0}
 [hidden]{display:none!important}
-body:not([data-proj="file"]) .fileOnly,body[data-proj="file"] .phoneOnly,body[data-proj="shoe"] .phoneOnly,body:not([data-proj="shoe"]) .shoeOnly,body[data-proj="file"] .hwOnly{display:none!important}
+body:not([data-proj="file"]) .fileOnly,body[data-proj="file"] .phoneOnly{display:none!important}
 body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-only="taglia"]{display:none!important}
 @media(max-width:520px){.grid2{grid-template-columns:1fr}}
 </style>
@@ -142,7 +142,6 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   <div class="row" style="margin-bottom:12px">
     <button class="btn on" id="srcStand">Supporto telefono</button>
     <button class="btn" id="srcFile">Apri un progetto (zip o SVG)</button>
-    <button class="btn" id="srcShoe">Scarpiera modulare</button>
   </div>
   <div class="fileOnly" id="impBox">
     <p class="hint" style="margin-top:0">Scegli uno <b>zip</b> di progetti o un <b>file SVG</b>: laserBrio legge gli SVG, anche dentro zip molto grandi, e li prepara per il taglio. Se lo zip ne contiene tanti, scrivi un pezzo del nome nel filtro.</p>
@@ -160,7 +159,6 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
     </div>
     <p class="hint">Se il disegno è troppo grande o ci sono cornici che non vuoi tagliare, spegni quel colore. Controlla sempre le misure qui sotto prima di tagliare.</p>
   </div>
-  <div class="shoeOnly" id="shoeBox"></div>
   <p class="phoneOnly" style="margin:0 0 10px"><b>Supporto telefono regolabile</b>, da tagliare in compensato chiaro e fissare al telaio del laser. Le ganasce tengono il telefono dai lati: vanno bene per iPhone, Pixel, Redmi e altri, e lasciano libera la fotocamera.</p>
   <div class="grid2 phoneOnly">
     <div><label for="pT">Spessore del legno (mm)</label><input type="number" id="pT" value="3" step="0.1" min="1" max="6"></div>
@@ -190,7 +188,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
     <div class="sheetbtns" id="sheetBtns"></div>
     <canvas id="sheetCanvas" width="600" height="600"></canvas>
     <p class="hint" id="sheetInfo"></p>
-    <details class="hwOnly">
+    <details class="phoneOnly">
       <summary>Cosa ti serve e come si monta</summary>
       <p style="margin:8px 0 0"><b>Materiale</b></p>
       <ul class="list" id="hwList"></ul>
@@ -370,7 +368,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer>CxAdGeM_Fp · Mk 52</footer>
+<footer><span id="mkTxt">CxAdGeM_Fp · Mk 52</span><div class="row" style="justify-content:center;margin-top:10px"><button class="btn" id="mkSave">Salva Mk</button><button class="btn" id="mkLoad">Carica Mk</button></div></footer>
 </main>
 
 <script>
@@ -972,8 +970,7 @@ function fmtMin(sec){const m=Math.round(sec/60);return m>=90?(Math.floor(m/60)+'
 function doRenderSheets(){
   if(mode()!=='taglia')return;
   const AREA={w:Number($('areaX').value)||400,h:Number($('areaY').value)||400};
-  const pj=document.body.dataset.proj;
-  const plan=pj==='file'?(window.Proj?Proj.plan(AREA):{error:'Sto caricando…'}):pj==='shoe'?(window.Scarp?Scarp.plan(AREA):{error:'Sto caricando…'}):phoneStandPlan(projParams(),AREA);
+  const plan=fileMode()?(window.Proj?Proj.plan(AREA):{error:'Sto caricando…'}):phoneStandPlan(projParams(),AREA);
   S.plan=plan;
   $('planMsg').textContent=plan.error||'';
   $('planBody').hidden=!!plan.error;
@@ -995,7 +992,7 @@ function doRenderSheets(){
   for(const t of (plan.hardware||[])){const li=document.createElement('li');li.textContent=t;hw.appendChild(li);}
   const st=$('stepList');st.innerHTML='';
   for(const t of (plan.steps||[])){const li=document.createElement('li');li.textContent=t;st.appendChild(li);}
-  if(!fileMode()&&document.body.dataset.proj!=='shoe')update3D(false);
+  if(!fileMode())update3D(false);
   if(window.Cam)Cam.dirty();
   refreshUI();
 }
@@ -1023,16 +1020,7 @@ window.__projRefresh=()=>{doRenderSheets();};window.__gz=()=>S.gz;
 })();
 function setProj(p){
   document.body.dataset.proj=p;
-  $('srcStand').classList.toggle('on',p==='stand');$('srcFile').classList.toggle('on',p==='file');$('srcShoe').classList.toggle('on',p==='shoe');
-  if(p==='shoe'){
-    if(!window.Scarp){
-      if(window.__scLoading)return;window.__scLoading=true;
-      const sc2=document.createElement('script');sc2.src='scarpiera.js';
-      sc2.onload=()=>{Scarp.init();window.__scLoading=false;doRenderSheets();};
-      sc2.onerror=()=>{window.__scLoading=false;$('planMsg').textContent='Non riesco a caricare la scarpiera.';};
-      document.head.appendChild(sc2);
-    }else Scarp.init();
-  }
+  $('srcStand').classList.toggle('on',p==='stand');$('srcFile').classList.toggle('on',p==='file');
   if(p==='file'&&!window.Proj){
     if(window.__projLoading)return;window.__projLoading=true;
     const sc=document.createElement('script');sc.src='progetto.js';
@@ -1049,7 +1037,6 @@ $('btnCat').onclick=()=>{
 };
 $('srcStand').onclick=()=>setProj('stand');
 $('srcFile').onclick=()=>setProj('file');
-$('srcShoe').onclick=()=>setProj('shoe');
 $('btnProve').onclick=()=>{
   if(window.Prove){Prove.open();return;}
   const sc=document.createElement('script');sc.src='prove.js';sc.onload=()=>Prove.open();
@@ -1357,6 +1344,32 @@ refreshUI();
     else{txt.innerHTML='Nel browser clicca sull\'icona <b>Installa</b> in fondo alla barra dell\'indirizzo (oppure menu ⋮ → <b>Trasmetti, salva e condividi</b> → <b>Installa pagina come app</b>). Serve Chrome o Edge.';btn.hidden=true;}
   });
 })();
+
+//<mk>
+(()=>{
+const KEYS=['ls_mats','ls_mode','lb_pc','ls_cam','lb_layout'],t=document.getElementById('mkTxt'),BUILD=+(t.textContent.match(/Mk (\d+)/)||[0,0])[1];
+let n=0;try{if(localStorage.getItem('lb_mk_b')!==String(BUILD)){localStorage.setItem('lb_mk_b',BUILD);localStorage.setItem('lb_mk_n','0');}n=+localStorage.getItem('lb_mk_n')||0;}catch(e){}
+const show=()=>{t.textContent='CxAdGeM_Fp · Mk '+(BUILD+n);};show();
+function dlg(title,txt,ok,okf){
+  const o=document.createElement('div');o.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99;display:flex;align-items:center;justify-content:center;padding:16px';
+  o.innerHTML='<div style="background:var(--card,#fff);color:var(--ink);border-radius:16px;padding:18px;max-width:560px;width:100%"><b></b><p class="hint" style="margin:8px 0"></p><textarea style="width:100%;height:150px;font:12px monospace;border-radius:10px;padding:8px"></textarea><div class="row" style="margin-top:10px"><button class="btn primary" id="mkOk"></button><button class="btn" id="mkNo">Chiudi</button></div></div>';
+  o.querySelector('b').textContent=title;o.querySelector('p').textContent=ok[0];const ta=o.querySelector('textarea');ta.value=txt;if(okf)ta.placeholder='Incolla qui il testo Mk';
+  o.querySelector('#mkOk').textContent=ok[1];o.querySelector('#mkNo').onclick=()=>o.remove();
+  o.querySelector('#mkOk').onclick=()=>{if(okf)okf(ta.value,o);else{ta.select();try{navigator.clipboard.writeText(ta.value);}catch(e){document.execCommand('copy');}o.querySelector('#mkOk').textContent='Copiato ✓';}};
+  document.body.appendChild(o);if(!okf){ta.focus();ta.select();}
+}
+document.getElementById('mkSave').onclick=()=>{
+  const d={mk:BUILD+n+1,build:BUILD,data:{}};
+  try{KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!=null)d.data[k]=v;});n++;localStorage.setItem('lb_mk_n',n);}catch(e){}
+  show();const s='LASERBRIO-MK '+JSON.stringify(d);
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([s],{type:'text/plain'}));a.download='laserbrio-mk'+d.mk+'.txt';a.click();}catch(e){}
+  dlg('Salvato: Mk '+d.mk,s,['Tutto salvato su questo dispositivo. Per farlo avere anche agli altri, copia questo testo e incollalo in chat a Claude (o salva il file scaricato).','Copia il testo']);
+};
+document.getElementById('mkLoad').onclick=()=>dlg('Carica Mk','',['Incolla qui il testo "LASERBRIO-MK…" che ti ha mandato Paolo.','Carica'],(v,o)=>{
+  try{const d=JSON.parse(v.trim().replace(/^LASERBRIO-MK\s*/,''));Object.keys(d.data).forEach(k=>{if(KEYS.includes(k))localStorage.setItem(k,d.data[k]);});localStorage.setItem('lb_mk_n',Math.max(0,(d.mk||BUILD)-BUILD));location.reload();}
+  catch(e){alert('Testo non valido.');}});
+})();
+//</mk>
 </script>
 </body>
 </html>

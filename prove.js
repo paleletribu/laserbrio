@@ -202,7 +202,7 @@ const T=[
     ops.forEach(mv);cuts.forEach(mv);
     cg='tacche';
     const nt=[-3,-2,-1,0,1,2,3];
-    tit('Tacche (mm)',3,5);
+    [['Tacche',4],['(mm)',7.4]].forEach(([s,y])=>ops.push(...textOps(s,2,y,2.4,Math.min(qp,LAB+10),F,0.15,'600').ops));
     nt.forEach((d,i)=>{
       const w=t+d*st,y=13+i*12.5;
       cuts.push({k:'cut',pts:[[0,y],[10,y],[10,y+w],[0,y+w]],closed:false,pct:co.pct,F:co.F,passes:co.passes});

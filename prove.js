@@ -323,7 +323,7 @@ function card(parent,tp,E){
   const go=document.createElement('button');go.className='btn primary';go.textContent='Invia al laser';row.appendChild(go);
   const dl=document.createElement('button');dl.className='btn';dl.textContent='Scarica il G-code';row.appendChild(dl);
   const FIX=new Set(['taglio','incis','qr']);
-  let cur=null,raw=null,xf=(()=>{try{return JSON.parse(localStorage.getItem('lb_layout')||'{}')||{};}catch(e){return {};}})(),sel=null,edit=false,bbs={},kt=0;
+  let cur=null,raw=null,xf=(()=>{const D='{"h3":{"dx":-142,"dy":53.1,"s":1,"r":0},"h0":{"dx":-4,"dy":0,"s":1,"r":0},"h1":{"dx":-4.1,"dy":0,"s":1,"r":0},"h2":{"dx":-4,"dy":0,"s":1,"r":0},"h4":{"dx":-142.2,"dy":53.1,"s":1,"r":0},"h5":{"dx":-142.2,"dy":52.7,"s":1,"r":0},"head":{"dx":3.3,"dy":1.6,"s":1.3,"r":0},"taglio":{"dx":84.1,"dy":-12.6,"s":1,"r":0},"incis":{"dx":29.4,"dy":35.3,"s":1,"r":0},"qr":{"dx":-116,"dy":15.1,"s":1,"r":0},"forme":{"dx":-132.9,"dy":38.1,"s":1,"r":270},"scritte":{"dx":-190.4,"dy":-7.3,"s":1,"r":270}}';try{const s=localStorage.getItem('lb_layout');return s===null?JSON.parse(D):(JSON.parse(s)||{});}catch(e){return {};}})(),sel=null,edit=false,bbs={},kt=0;
   const ed=document.createElement('button');ed.className='btn';ed.textContent='Sposta e ridimensiona i pezzi';ed.style.marginTop='6px';
   const rs=document.createElement('button');rs.className='btn';rs.textContent='Rimetti come prima';rs.style.marginTop='6px';rs.hidden=true;
   const rot=document.createElement('button');rot.className='btn';rot.textContent='Ruota di 90°';rot.style.marginTop='6px';rot.hidden=true;

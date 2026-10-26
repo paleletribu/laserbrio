@@ -115,10 +115,12 @@ const T=[
     if(!cs.length||!cp.length||!es.length||!ep.length)return [];
     const nome=(GL.nome||'Materiale').trim(),sp=(GL.sp||'').trim(),t=+sp||3,qp=Math.min(100,+p.qp||30),F=2000,c=8,g=5,ops=[],cuts=[];
     let cg='head';const tagA=a=>{const pp=a.push.bind(a);a.push=(...xs)=>{xs.forEach(x=>{if(!x.g)x.g=cg;});return pp(...xs);};return a;};tagA(ops);tagA(cuts);
-    const MW=(16+cs.length*(c+g)+16+es.length*(c+g)+6)-4-8,fitH=(s,h0,hmin)=>{const w=tmeasure(s,h0,0.15,'600');return w<=MW?h0:Math.max(hmin,Math.floor(h0*MW/w*10)/10);};
+    const hs=Math.max(.5,(xf&&xf.head&&xf.head.s)||1),MW=Math.min(16+cs.length*(c+g)+16+es.length*(c+g)+6-12,64)/hs,tw=(s,h)=>tmeasure(s,h,0.15,'600'),fitH=(s,h0,hmin)=>{const w=tw(s,h0);return w<=MW?h0:Math.max(hmin,Math.floor(h0*MW/w*10)/10);};
+    const wrap=(h)=>{const ws=nome.split(/\s+/),L=[];let cur='';ws.forEach(w=>{const t=cur?cur+' '+w:w;if(cur&&tw(t,h)>MW){L.push(cur);cur=w;}else cur=t;});if(cur)L.push(cur);return L;};
     let nmL=[nome],nmH=fitH(nome,6,3.6);
-    if(tmeasure(nome,nmH,0.15,'600')>MW||nmH<4.6){const ws=nome.split(' ');if(ws.length>1){let bi=1,bd=1e9;for(let i=1;i<ws.length;i++){const d=Math.abs(ws.slice(0,i).join(' ').length-ws.slice(i).join(' ').length);if(d<bd){bd=d;bi=i;}}
-      nmL=[ws.slice(0,bi).join(' '),ws.slice(bi).join(' ')];nmH=Math.min(fitH(nmL[0],4.4,2.4),fitH(nmL[1],4.4,2.4));}else nmH=fitH(nome,6,2.4);}
+    if(tw(nome,6)>MW){let h=4.6;nmL=wrap(h);while(nmL.length>2&&h>2.4){h=Math.round((h-0.2)*10)/10;nmL=wrap(h);}
+      if(nmL.length>2)nmL=[nmL.slice(0,Math.ceil(nmL.length/2)).join(' '),nmL.slice(Math.ceil(nmL.length/2)).join(' ')];
+      nmH=Math.min(h,...nmL.map(s=>fitH(s,h,2.4)));if(nmL.length===1)nmH=fitH(nmL[0],6,2.4);}
     nmL.forEach((s,i)=>{const t1=textOps(s,4,nmL.length>1?1.8+i*(nmH+0.6):2.5,nmH,qp,F,0.15,'600');ops.push(...t1.ops);});
     const tsp=sp?textOps(sp+' mm',4,11.8,2.8,Math.min(qp,LAB+10),F,0.15,'600'):null;if(tsp)ops.push(...tsp.ops);
     const dd=new Date(),ds=String(dd.getDate()).padStart(2,'0')+'/'+String(dd.getMonth()+1).padStart(2,'0')+'/'+String(dd.getFullYear()).slice(2);

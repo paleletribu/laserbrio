@@ -72,7 +72,7 @@ footer{margin-top:26px;text-align:center;color:var(--mute);font-size:13px;letter
 body.telmode main>*:not(#telPanel):not(h1):not(footer){display:none!important}
 #telVid{display:block;width:100%;height:auto;min-height:120px;border-radius:10px;background:#111;margin:10px 0}
 [hidden]{display:none!important}
-body:not([data-proj="file"]) .fileOnly,body[data-proj="file"] .phoneOnly,body[data-proj="shoe"] .phoneOnly,body:not([data-proj="shoe"]) .shoeOnly,body[data-proj="file"] .hwOnly{display:none!important}
+body:not([data-proj="file"]) .fileOnly,body[data-proj="file"] .phoneOnly,body[data-proj="shoe"] .phoneOnly,body[data-proj="staff"] .phoneOnly,body:not([data-proj="shoe"]) .shoeOnly,body:not([data-proj="staff"]) .staffOnly,body[data-proj="file"] .hwOnly{display:none!important}
 body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-only="taglia"]{display:none!important}
 @media(max-width:520px){.grid2{grid-template-columns:1fr}}
 </style>
@@ -144,6 +144,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
     <button class="btn on" id="srcStand">Supporto telefono</button>
     <button class="btn" id="srcFile">Apri un progetto (zip o SVG)</button>
     <button class="btn" id="srcShoe">Scarpiera modulare</button>
+    <button class="btn" id="srcStaff">Bastone con ventagli</button>
   </div>
   <div class="fileOnly" id="impBox">
     <p class="hint" style="margin-top:0">Scegli uno <b>zip</b> di progetti o un <b>file SVG</b>: laserBrio legge gli SVG, anche dentro zip molto grandi, e li prepara per il taglio. Se lo zip ne contiene tanti, scrivi un pezzo del nome nel filtro.</p>
@@ -162,6 +163,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
     <p class="hint">Se il disegno è troppo grande o ci sono cornici che non vuoi tagliare, spegni quel colore. Controlla sempre le misure qui sotto prima di tagliare.</p>
   </div>
   <div class="shoeOnly" id="shoeBox"></div>
+  <div class="staffOnly" id="staffBox"></div>
   <p class="phoneOnly" style="margin:0 0 10px"><b>Supporto telefono regolabile</b>, da tagliare in compensato chiaro e fissare al telaio del laser. Le ganasce tengono il telefono dai lati: vanno bene per iPhone, Pixel, Redmi e altri, e lasciano libera la fotocamera.</p>
   <div class="grid2 phoneOnly">
     <div><label for="pT">Spessore del legno (mm)</label><input type="number" id="pT" value="3" step="0.1" min="1" max="6"></div>
@@ -371,7 +373,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer><span id="mkTxt">CxAdGeM_Fp · Mk 59</span></footer>
+<footer><span id="mkTxt">CxAdGeM_Fp · Mk 60</span></footer>
 </main>
 
 <script>
@@ -974,7 +976,7 @@ function doRenderSheets(){
   if(mode()!=='taglia')return;
   const AREA={w:Number($('areaX').value)||400,h:Number($('areaY').value)||400};
   const pj=document.body.dataset.proj;
-  const plan=pj==='file'?(window.Proj?Proj.plan(AREA):{error:'Sto caricando…'}):pj==='shoe'?(window.Scarp?Scarp.plan(AREA):{error:'Sto caricando…'}):phoneStandPlan(projParams(),AREA);
+  const plan=pj==='file'?(window.Proj?Proj.plan(AREA):{error:'Sto caricando…'}):pj==='shoe'?(window.Scarp?Scarp.plan(AREA):{error:'Sto caricando…'}):pj==='staff'?(window.Bastone?Bastone.plan(AREA):{error:'Sto caricando…'}):phoneStandPlan(projParams(),AREA);
   S.plan=plan;
   $('planMsg').textContent=plan.error||'';
   $('planBody').hidden=!!plan.error;
@@ -996,7 +998,7 @@ function doRenderSheets(){
   for(const t of (plan.hardware||[])){const li=document.createElement('li');li.textContent=t;hw.appendChild(li);}
   const st=$('stepList');st.innerHTML='';
   for(const t of (plan.steps||[])){const li=document.createElement('li');li.textContent=t;st.appendChild(li);}
-  if(!fileMode()&&document.body.dataset.proj!=='shoe')update3D(false);
+  if(!fileMode()&&document.body.dataset.proj!=='shoe'&&document.body.dataset.proj!=='staff')update3D(false);
   if(window.Cam)Cam.dirty();
   refreshUI();
 }
@@ -1024,7 +1026,7 @@ window.__projRefresh=()=>{doRenderSheets();};window.__gz=()=>S.gz;
 })();
 function setProj(p){
   document.body.dataset.proj=p;
-  $('srcStand').classList.toggle('on',p==='stand');$('srcFile').classList.toggle('on',p==='file');$('srcShoe').classList.toggle('on',p==='shoe');
+  $('srcStand').classList.toggle('on',p==='stand');$('srcFile').classList.toggle('on',p==='file');$('srcShoe').classList.toggle('on',p==='shoe');$('srcStaff').classList.toggle('on',p==='staff');
   if(p==='shoe'){
     if(!window.Scarp){
       if(window.__scLoading)return;window.__scLoading=true;
@@ -1033,6 +1035,15 @@ function setProj(p){
       sc2.onerror=()=>{window.__scLoading=false;$('planMsg').textContent='Non riesco a caricare la scarpiera.';};
       document.head.appendChild(sc2);
     }else Scarp.init();
+  }
+  if(p==='staff'){
+    if(!window.Bastone){
+      if(window.__bsLoading)return;window.__bsLoading=true;
+      const sb=document.createElement('script');sb.src='bastone.js';
+      sb.onload=()=>{Bastone.init();window.__bsLoading=false;doRenderSheets();};
+      sb.onerror=()=>{window.__bsLoading=false;$('planMsg').textContent='Non riesco a caricare il bastone.';};
+      document.head.appendChild(sb);
+    }else Bastone.init();
   }
   if(p==='file'&&!window.Proj){
     if(window.__projLoading)return;window.__projLoading=true;
@@ -1051,6 +1062,7 @@ $('btnCat').onclick=()=>{
 $('srcStand').onclick=()=>setProj('stand');
 $('srcFile').onclick=()=>setProj('file');
 $('srcShoe').onclick=()=>setProj('shoe');
+$('srcStaff').onclick=()=>setProj('staff');
 $('btnProve').onclick=()=>{
   if(window.Prove){Prove.open();return;}
   const sc=document.createElement('script');sc.src='prove.js';sc.onload=()=>Prove.open();

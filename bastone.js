@@ -42,9 +42,10 @@ function piccole(){
 function placca(x,y,s,name){
   const c=s/2,o=16;
   return {name:name,tag:'placca',pts:rectPts(x,y,s,s),holes:[circle(x+c,y+c,2.1),circle(x+o,y+o,1.25),circle(x+s-o,y+s-o,1.25)]};}
+function sportello(x,y){return {name:'Sportellino',tag:'sportello',pts:rectPts(x,y,64,16),holes:[]};}
 const SHEETS=[
   {title:'Foglio 1',build:()=>grandi().concat(piccole(),[placca(10,10,100,'Base placca'),placca(120,10,100,'Base placca')])},
-  {title:'Foglio 2',build:()=>grandi().concat([placca(10,10,80,'Piano placca'),placca(100,10,80,'Piano placca')])}
+  {title:'Foglio 2',build:()=>grandi().concat([placca(10,10,80,'Piano placca'),placca(100,10,80,'Piano placca'),sportello(10,100),sportello(10,120),sportello(10,140),sportello(10,160)])}
 ];
 
 function toSheet(pieces){
@@ -64,21 +65,22 @@ function plan(AREA){
   if(AREA.w<SZ-0.5||AREA.h<SZ-0.5)
     return {error:'I fogli del bastone sono disegnati per un piano di 400 × 400 mm; l\'area di lavoro impostata è '+Math.round(AREA.w)+' × '+Math.round(AREA.h)+' mm.'};
   const sheets=SHEETS.map(s=>toSheet(s.build()));
-  const parts=[{name:'Stecche grandi (con guardie)',tag:'stecca',count:8},{name:'Stecche piccole (con guardie)',tag:'stecca',count:6},{name:'Basi delle placche 100 × 100',tag:'placca',count:2},{name:'Piani delle placche 80 × 80',tag:'placca',count:2}];
+  const parts=[{name:'Stecche grandi (con guardie)',tag:'stecca',count:8},{name:'Stecche piccole (con guardie)',tag:'stecca',count:6},{name:'Basi delle placche 100 × 100',tag:'placca',count:2},{name:'Piani delle placche 80 × 80',tag:'placca',count:2},{name:'Sportellini 64 × 16 (3 mm)',tag:'sportello',count:4}];
   const hardware=[
     'Compensato con strati incrociati: stecche da 2 mm, placche da 3 mm',
     '2 viti M4 con dado autobloccante (lunghezza = spessore asta + 5 mm), 4 viti M2,5 × 10 mm, rondelle in nylon M4',
     '2 molle a torsione (filo 0,8 mm, foro 4 mm, gambe 25 mm, 180°)',
     '1 listello di compensato 3 × 12 × 1000 mm con 2 ganci a L (da tagliare a parte) e cordino con anello',
     'Asta da 165 cm, interno 30 × 16 mm (da tagliare a parte)',
+    '4 cerniere di nastro, tessuto o pelle sottile e 4 elastici sottili o piccole molle di richiamo (per gli sportellini)',
     'Colla vinilica, tela o carta leggera, olio o vernice'
   ];
   const steps=[
     'Taglia prima su cartone e controlla che il piano sia libero su tutti i 400 mm (margine delle stecche grandi: circa 19 mm dal bordo). Foglio 1 e foglio 2 si tagliano uno alla volta, con l\'origine nell\'angolo in basso a sinistra.',
     'Carteggia i bordi (grana 240) e dai olio o vernice: le stecche devono scorrere senza attrito.',
-    'Asta: su entrambi i lati stretti apri una feritoia 16 × 40 mm, la prima a 41 cm dalla cima, la seconda a 134 cm. Lascia 3 mm liberi contro la parete posteriore.',
-    'Fai passare una vite M4 attraverso l\'asta al centro di ogni feritoia: è il perno del ventaglio.',
-    'Ventaglio grande: sul perno alto infila 4 stecche grandi per lato, alternando destra e sinistra, con una rondella in nylon tra una e l\'altra. Le 2 stecche con dentino sono le guardie.',
+    'Asta: su entrambi i lati stretti apri due feritoie 16 × 64 mm. La prima va da 39,4 a 45,8 cm dalla cima (il perno sta a 41 cm), la seconda da 132,4 a 138,8 cm (perno a 134 cm): così lo spazio sopra il perno è di 16 mm e quello sotto di 48 mm. Lascia 3 mm liberi contro la parete posteriore.',
+    'Fai passare una vite M4 attraverso l\'asta a 41 cm e a 134 cm dalla cima: è il perno del ventaglio. Sportellini: su ogni feritoia monta uno sportellino da 64 × 16 mm (compensato da 3 mm) a filo dell\'asta, con una cerniera di nastro o pelle incollata sul bordo basso e un elastico sottile che lo tiene chiuso. Aprendosi, le stecche lo spingono in fuori; richiudendo i ventagli torna al suo posto e la feritoia sparisce.',
+    'Ventaglio grande (si apre di circa 80°): sul perno alto infila 4 stecche grandi per lato, alternando destra e sinistra, con una rondella in nylon tra una e l\'altra. Le 2 stecche con dentino sono le guardie.',
     'Ventaglio piccolo: stesso procedimento con 3 + 3 stecche piccole sul perno basso (guardie con dentino).',
     'Molla: infila una molla a torsione su ogni perno tra le due guardie. Le gambe vanno nei fori da 1,2 mm vicino al perno. Chiudi i dadi senza stringere a fondo.',
     'Tela: 3 spicchi per lato nel ventaglio grande, 2 per lato nel piccolo. Incolla solo sul terzo esterno di ogni stecca, con piega a fisarmonica.',
@@ -92,7 +94,7 @@ function plan(AREA){
 }
 
 /* ---------- anteprima 3D (si carica solo quando serve) ---------- */
-const HA=1650,SLOT=40;                           /* asta da 165 cm, feritoie 16 × 40 mm */
+const HA=1650,SLO=48,SHI=16;                     /* asta da 165 cm, feritoie 16 × 64 mm: 48 mm sotto il perno e 16 sopra */
 const YP=[HA-410,HA-1340];                       /* perni a 41 cm e a 134 cm dalla cima */
 let V3=null,s3Loading=null,s3={open:1,explode:0};
 const CDN3=['https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js','https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js'];
@@ -132,6 +134,7 @@ function s3Apply(){
   V3.root.children.forEach(function(m){
     const u=m.userData,b=u.base,n=u.dir;
     m.position.set(b[0]+n[0]*e,b[1]+n[1]*e,b[2]+n[2]*e);
+    if(u.flap)m.rotation.z=-u.flap*deg(f*40);
     if(u.fan){const th=-90+f*(u.thOpen+90);m.rotation.z=deg(u.wing===0?th:180-th);}});
   V3.dirty=true;}
 function s3Build(){
@@ -146,10 +149,14 @@ function s3Build(){
   /* asta: pareti da 3 mm, interno 30 × 16; sui lati stretti le feritoie dei due ventagli */
   box([36,HA,3],[0,HA/2,-9.5],0xcfa468,[0,0,-90],1);
   box([36,HA,3],[0,HA/2,9.5],0xdcb67a,[0,0,90],0.28);
-  const cuts=[0].concat(YP.slice().reverse().reduce(function(a,y){return a.concat([y-SLOT/2,y+SLOT/2]);},[]),[HA]);
+  const cuts=[0].concat(YP.slice().reverse().reduce(function(a,y){return a.concat([y-SLO,y+SHI]);},[]),[HA]);
   [-1,1].forEach(function(sx){
     for(let i=0;i<cuts.length;i+=2){const y0=cuts[i],y1=cuts[i+1];if(y1-y0<1)continue;
       box([3,y1-y0,16],[sx*16.5,(y0+y1)/2,0],0xcfa468,[sx*120,0,0],1);}});
+  /* sportellini a cerniera sul bordo basso: chiusi coprono la feritoia, aperti sono spinti in fuori dalle stecche */
+  YP.forEach(function(y){[-1,1].forEach(function(sx){
+    const g=new THREE.BoxGeometry(3,SLO+SHI,16);g.translate(0,(SLO+SHI)/2,0);
+    reg(g,wood(0xe8cc9c,1),[sx*16.5,y-SLO,0],[sx*90,0,0],0x4a2f17,{flap:sx});});});
   /* ventagli: stecche da 2 mm che ruotano sul perno; chiuse puntano verso il basso, dentro l'asta */
   const geoCache={};
   const steccaGeo=function(L,tooth){
@@ -164,7 +171,7 @@ function s3Build(){
     for(let j=0;j<tot;j++){
       const wing=j%2,k=(j-wing)/2,tooth=j===0?-1:(j===tot-1?1:0),z=(j-(tot-1)/2)*2;
       const col=tooth?0xb98648:(wing?0xe8cc9c:0xe0c08f);
-      const m=reg(steccaGeo(F.L,tooth),wood(col,1),[0,F.y,z],[0,0,z*14],0x4a2f17,{fan:true,wing:wing,thOpen:-80+k*(100/(F.n-1))});
+      const m=reg(steccaGeo(F.L,tooth),wood(col,1),[0,F.y,z],[0,0,z*14],0x4a2f17,{fan:true,wing:wing,thOpen:-60+k*(80/(F.n-1))});
       m.rotation.z=deg(-90);}
     cyl(2,26,[0,F.y,0],0,[0,0,60]);
     cyl(4.5,3,[0,F.y,-11],0,[0,0,-30]);});
@@ -190,13 +197,13 @@ function init(){
   const box=$('staffBox');if(!box||box.dataset.ready)return;box.dataset.ready='1';
   box.innerHTML=
     '<p style="margin:0 0 10px"><b>Bastone con ventagli</b> (costume di Aang): un\'asta con due ventagli pieghevoli, uno grande e uno piccolo, che stanno interamente dentro l\'asta quando è chiusa e si aprono con un solo gesto.</p>'+
-    '<p class="hint">Servono <b>2 fogli</b> da 400 × 400 mm: stecche dei due ventagli, basi e piani delle due placche a rombo. L\'asta, le feritoie e il listello del chiavistello si tagliano a parte. I medaglioni sulle placche restano vuoti per ora. Prova prima su cartone.</p>'+
+    '<p class="hint">Servono <b>2 fogli</b> da 400 × 400 mm: stecche dei due ventagli, basi e piani delle due placche a rombo. L\'asta, le feritoie e il listello del chiavistello si tagliano a parte; le feritoie si coprono con 4 sportellini a cerniera (nel foglio 2). I medaglioni sulle placche restano vuoti per ora. Prova prima su cartone.</p>'+
     '<details id="bs3dBox" open style="margin:10px 0"><summary>Anteprima 3D del bastone</summary>'+
     '<div id="bs3d" style="height:460px;border-radius:12px;overflow:hidden;background:#f3ebe0;border:1px solid #ddd3c3;margin-top:8px"></div>'+
     '<div class="row" style="margin-top:10px"><label class="chk" style="flex:1;min-width:180px">Ventagli: chiusi ↔ aperti <input type="range" id="bs3Open" min="0" max="100" value="100"></label>'+
     '<label class="chk" style="flex:1;min-width:180px">Vista esplosa <input type="range" id="bs3Exp" min="0" max="100" value="0"></label>'+
     '<button class="btn" id="bs3Reset">Rimetti la vista</button></div>'+
-    '<p class="hint">Trascina per ruotare, rotellina o due dita per ingrandire. L\'asta è un po\' trasparente davanti, così a ventagli chiusi vedi le stecche dentro. Con "Vista esplosa" si staccano le pareti, i perni, le placche e il listello. Misure e posizioni sono quelle del progetto, non un disegno di dettaglio.</p></details>';
+    '<p class="hint">Trascina per ruotare, rotellina o due dita per ingrandire. L\'asta è un po\' trasparente davanti, così a ventagli chiusi vedi le stecche dentro. Con "Vista esplosa" si staccano le pareti, gli sportellini, i perni, le placche e il listello. Misure e posizioni sono quelle del progetto, non un disegno di dettaglio.</p></details>';
   $('bs3Open').oninput=function(){s3.open=Number($('bs3Open').value)/100;s3Apply();};
   $('bs3Exp').oninput=function(){s3.explode=Number($('bs3Exp').value)/100;s3Apply();};
   $('bs3Reset').onclick=function(){if(V3)s3Fit();};

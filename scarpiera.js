@@ -160,6 +160,86 @@ function plan(AREA){
   return {parts:parts,sheets:sheets,hardware:hardware,steps:steps};
 }
 
+
+/* ---------- anteprima 3D (si carica solo quando serve) ---------- */
+let V3=null,s3Loading=null,s3Opts={explode:0},s3Key='';
+const CDN3=['https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js','https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js'];
+function s3Script(src){return new Promise(function(ok,ko){const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=function(){ko(new Error(src));};document.head.appendChild(s);});}
+function s3Ensure(){
+  if(window.THREE&&THREE.OrbitControls)return Promise.resolve();
+  if(!s3Loading)s3Loading=s3Script(CDN3[0]).then(function(){return s3Script(CDN3[1]);}).catch(function(e){s3Loading=null;throw e;});
+  return s3Loading;}
+function s3Init(box){
+  const r=new THREE.WebGLRenderer({antialias:true});
+  r.setPixelRatio(Math.min(2,window.devicePixelRatio||1));r.setClearColor(0xf3ebe0,1);
+  r.domElement.style.cssText='width:100%;height:100%;display:block';
+  box.innerHTML='';box.appendChild(r.domElement);
+  const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(35,1,5,6000);
+  sc.add(new THREE.AmbientLight(0xffffff,0.75));
+  const d=new THREE.DirectionalLight(0xffffff,0.55);d.position.set(300,500,-400);sc.add(d);
+  const d2=new THREE.DirectionalLight(0xffffff,0.25);d2.position.set(-300,150,300);sc.add(d2);
+  const ctl=new THREE.OrbitControls(cam,r.domElement);ctl.enableDamping=true;ctl.dampingFactor=0.12;
+  V3={box:box,renderer:r,scene:sc,camera:cam,controls:ctl,root:new THREE.Group(),dirty:true,raf:0,fitted:false};
+  sc.add(V3.root);
+  const size=function(){const w=Math.max(200,box.clientWidth),h=Math.max(220,box.clientHeight||340);r.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix();V3.dirty=true;};
+  if(window.ResizeObserver){V3.ro=new ResizeObserver(size);V3.ro.observe(box);}else window.addEventListener('resize',size);
+  size();
+  const frame=function(){if(!V3)return;V3.raf=requestAnimationFrame(frame);if(V3.controls.update()||V3.dirty){V3.dirty=false;r.render(sc,cam);}};
+  frame();}
+function s3Fit(ext){
+  const asp=V3.camera.aspect||1.5,cx=ext.w/2,cy=ext.h/2,cz=ext.d/2;
+  V3.controls.target.set(cx,cy,cz);
+  const span=Math.max(ext.h,ext.w/asp,ext.d/asp)*1.25+ext.d*0.4;
+  const dist=span/(2*Math.tan(17.5*Math.PI/180))*1.15;
+  const v=new THREE.Vector3(-0.55,0.45,-1).normalize().multiplyScalar(dist);
+  V3.camera.position.set(cx+v.x,cy+v.y,cz+v.z);V3.camera.far=dist*8;V3.camera.updateProjectionMatrix();
+  V3.controls.update();V3.dirty=true;}
+function s3Apply(){
+  if(!V3)return;const e=s3Opts.explode;
+  V3.root.children.forEach(function(m){
+    const u=m.userData,b=u.base,n=u.n,o=u.out;
+    m.position.set(b[0]+(n[0]*30+o[0])*e,b[1]+(n[1]*30+o[1])*e,b[2]+(n[2]*30+o[2])*e);});
+  V3.dirty=true;}
+function s3Build(){
+  const p=params(),g=occ(),t=p.t,D=p.D;
+  while(V3.root.children.length)V3.root.remove(V3.root.children[0]);
+  let maxc=0,maxh=0;st.mods.forEach(function(m){maxc=Math.max(maxc,m.c+1);maxh=Math.max(maxh,m.r+m.n);});
+  const ext={w:Math.max(1,maxc)*p.Pw,h:Math.max(1,maxh)*p.Ph,d:D},gc=[ext.w/2,ext.h/2,D/2];
+  const add=function(sz,c,col,n,edge){
+    const geo=new THREE.BoxGeometry(sz[0],sz[1],sz[2]);
+    const mesh=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({color:col}));
+    mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:edge||0x4a2f17})));
+    mesh.userData={base:c,n:n,out:[(c[0]-gc[0])*0.35,(c[1]-gc[1])*0.35,(c[2]-gc[2])*0.35]};
+    V3.root.add(mesh);};
+  st.mods.forEach(function(m){
+    const H=m.n*p.Ph,x0=m.c*p.Pw,y0=m.r*p.Ph;
+    const col=m.done?0xa9c6a4:({1:0xe0c08f,2:0xcfa468,3:0xb98648})[m.n];
+    add([t,H,D],[x0+t/2,y0+H/2,D/2],col,[-1,0,0]);
+    add([t,H,D],[x0+p.Pw-t/2,y0+H/2,D/2],col,[1,0,0]);
+    add([p.Y,t,D],[x0+p.Pw/2,y0+t/2,D/2],col,[0,-1,0]);
+    add([p.Y,t,D],[x0+p.Pw/2,y0+H-t/2,D/2],col,[0,1,0]);
+    if(p.back)add([p.Y,H-2*t,t],[x0+p.Pw/2,y0+H/2,D-t/2],col,[0,0,1]);});
+  const dc=depthCenters(p),o=offs(p),kcol=0x7a5430;
+  for(const k in g){const a=k.split(',').map(Number),c=a[0],r=a[1],m=g[k];
+    const right=g[(c+1)+','+r];
+    if(right&&right!==m){const jx=(c+1)*p.Pw;
+      add([2*t,t,p.kl],[jx,(r+.5)*p.Ph+o,dc[0]],kcol,[0,0,0],0x2a1a0a);
+      add([2*t,t,p.kl],[jx,(r+.5)*p.Ph-o,dc[1]],kcol,[0,0,0],0x2a1a0a);}
+    const up=g[c+','+(r+1)];
+    if(up&&up!==m){const jy=(r+1)*p.Ph,cx=c*p.Pw+p.Pw/2;
+      add([t,2*t,p.kl],[cx-o,jy,dc[0]],kcol,[0,0,0],0x2a1a0a);
+      add([t,2*t,p.kl],[cx+o,jy,dc[1]],kcol,[0,0,0],0x2a1a0a);}}
+  return ext;}
+function s3Update(){
+  const bx=document.getElementById('sc3dBox'),box=document.getElementById('sc3d');
+  if(!bx||!bx.open||!box)return;
+  s3Ensure().then(function(){
+    if(!V3||V3.box!==box){if(V3){cancelAnimationFrame(V3.raf);try{V3.renderer.dispose();}catch(e){}}s3Init(box);}
+    const ext=s3Build(),key=[ext.w,ext.h,ext.d].join('|');
+    if(!V3.fitted||V3.key!==key){s3Fit(ext);V3.fitted=true;V3.key=key;}
+    V3.ext=ext;s3Apply();
+  }).catch(function(){box.innerHTML='<p class="hint" style="padding:14px">Non riesco a caricare la vista 3D: serve internet la prima volta.</p>';V3=null;});}
+
 /* ---------- interfaccia ---------- */
 function save(){try{localStorage.setItem(KEY,JSON.stringify(st));}catch(e){}}
 function load(){try{const s=JSON.parse(localStorage.getItem(KEY)||'null');if(s&&s.mods){st=Object.assign(st,s);st.vals=Object.assign({},DEF,s.vals||{});}}catch(e){}}
@@ -168,7 +248,7 @@ function changed(){
     IDS.forEach(i=>{const v=parseFloat($(i).value);if(isFinite(v))st.vals[i]=v;});
     st.back=$('sBack').checked;st.mode=$('scMode').value;st.xk=parseInt($('sXk').value)||0;
   }
-  save();draw();if(window.__projChanged)window.__projChanged();
+  save();draw();s3Update();if(window.__projChanged)window.__projChanged();
 }
 function cellClick(c,r){
   const g=occ(),m=g[c+','+r];$('scWarn').textContent='';
@@ -212,6 +292,7 @@ function init(){
     '<div id="scLay" style="overflow:auto;background:#faf7f1;border:1px dashed #ddd3c3;border-radius:8px;padding:4px"></div>'+
     '<p class="hint" id="scSum"></p><p class="hint" id="scWarn" style="color:var(--bad)"></p>'+
     '<p class="hint">Tocca una cella vuota per aggiungere un modulo (cresce verso l\'alto). Un modulo nuovo è <b>da costruire</b> (legno); toccandolo diventa <b>costruito</b> (verde). Il taglio propone solo i moduli da costruire, con le chiavi per collegarli a quelli già montati.</p>'+
+    '<details id="sc3dBox" open style="margin:10px 0"><summary>Anteprima 3D della scarpiera</summary><div id="sc3d" style="height:380px;border-radius:12px;overflow:hidden;background:#f3ebe0;border:1px solid #ddd3c3;margin-top:8px"></div><div class="row" style="margin-top:10px"><label class="chk" style="flex:1;min-width:180px">Vista esplosa <input type="range" id="sc3Exp" min="0" max="100" value="0"></label><button class="btn" id="sc3Reset">Rimetti la vista</button></div><p class="hint">Trascina per ruotare, rotellina o due dita per ingrandire. I moduli costruiti sono verdi, quelli da costruire color legno, le chiavi scure. Con "Vista esplosa" i pannelli si staccano.</p></details>'+
     '<div class="grid2"><div><label for="scMode">Cosa tagliare</label><select id="scMode"><option value="todo">Solo i moduli da costruire (nuovi)</option><option value="all">Tutta la composizione</option><option value="1">Un solo modulo 1X (prova)</option><option value="2">Un solo modulo 2X</option><option value="3">Un solo modulo 3X</option></select></div>'+
     '<div><label for="sXk">Chiavi di scorta</label><input type="number" id="sXk" value="'+st.xk+'" min="0" step="1"></div></div>';
   $('scMode').value=st.mode;
@@ -225,7 +306,10 @@ function init(){
   $('scDelR').onclick=()=>{if(st.rows>1){st.rows--;st.mods=st.mods.filter(m=>m.r+m.n<=st.rows);changed();}};
   $('scAllDone').onclick=()=>{st.mods.forEach(m=>m.done=true);changed();};
   $('scClr').onclick=()=>{st.mods=[];changed();};
-  draw();
+  $('sc3dBox').addEventListener('toggle',s3Update);
+  $('sc3Exp').oninput=function(){s3Opts.explode=Number($('sc3Exp').value)/100;s3Apply();};
+  $('sc3Reset').onclick=function(){if(V3&&V3.ext)s3Fit(V3.ext);};
+  draw();s3Update();
 }
 window.Scarp={init:init,plan:plan};
 })();

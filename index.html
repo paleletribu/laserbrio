@@ -373,7 +373,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer><span id="mkTxt">CxAdGeM_Fp · Mk 61</span></footer>
+<footer><span id="mkTxt">CxAdGeM_Fp · Mk 62</span></footer>
 </main>
 
 <script>
@@ -993,7 +993,7 @@ function doRenderSheets(){
   });
   drawSheet(plan.sheets[S.sheetSel]);
   const sh=plan.sheets[S.sheetSel],tm=buildCut(sh.cutPaths,cp.F,cp.passes,cp.pct,S.smax).timeSec;
-  $('sheetInfo').textContent='Foglio '+(S.sheetSel+1)+' di '+plan.sheets.length+': '+sh.items.length+' pezzi, serve un pezzo di legno di almeno '+Math.ceil(sh.w)+' × '+Math.ceil(sh.h)+' mm · taglio circa '+fmtMin(tm)+' (tutti i fogli: circa '+fmtMin(total)+' con '+cp.passes+' passate a '+cp.F+' mm/min).';
+  $('sheetInfo').textContent='Foglio '+(S.sheetSel+1)+' di '+plan.sheets.length+(sh.note?' ('+sh.note+')':'')+': '+sh.items.length+' pezzi, serve un pezzo di legno di almeno '+Math.ceil(sh.w)+' × '+Math.ceil(sh.h)+' mm · taglio circa '+fmtMin(tm)+' (tutti i fogli: circa '+fmtMin(total)+' con '+cp.passes+' passate a '+cp.F+' mm/min).';
   const hw=$('hwList');hw.innerHTML='';
   for(const t of (plan.hardware||[])){const li=document.createElement('li');li.textContent=t;hw.appendChild(li);}
   const st=$('stepList');st.innerHTML='';
@@ -1039,10 +1039,15 @@ function setProj(p){
   if(p==='staff'){
     if(!window.Bastone){
       if(window.__bsLoading)return;window.__bsLoading=true;
+      const sg=document.createElement('script');sg.src='bastone-geo.js';
+      sg.onerror=()=>{window.__bsLoading=false;$('planMsg').textContent='Non riesco a caricare il bastone.';};
+      sg.onload=()=>{
       const sb=document.createElement('script');sb.src='bastone.js';
       sb.onload=()=>{Bastone.init();window.__bsLoading=false;doRenderSheets();};
       sb.onerror=()=>{window.__bsLoading=false;$('planMsg').textContent='Non riesco a caricare il bastone.';};
       document.head.appendChild(sb);
+      };
+      document.head.appendChild(sg);
     }else Bastone.init();
   }
   if(p==='file'&&!window.Proj){

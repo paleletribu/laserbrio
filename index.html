@@ -373,7 +373,7 @@ body[data-mode="taglia"] [data-only="incidi"],body[data-mode="incidi"] [data-onl
   </details>
 </section>
 
-<footer><span id="mkTxt">CxAdGeM_Fp · Mk 62</span></footer>
+<footer><span id="mkTxt">CxAdGeM_Fp · Mk 63</span></footer>
 </main>
 
 <script>
@@ -1039,10 +1039,10 @@ function setProj(p){
   if(p==='staff'){
     if(!window.Bastone){
       if(window.__bsLoading)return;window.__bsLoading=true;
-      const sg=document.createElement('script');sg.src='bastone-geo.js';
+      const sg=document.createElement('script');sg.src='bastone-geo.js?v=63';
       sg.onerror=()=>{window.__bsLoading=false;$('planMsg').textContent='Non riesco a caricare il bastone.';};
       sg.onload=()=>{
-      const sb=document.createElement('script');sb.src='bastone.js';
+      const sb=document.createElement('script');sb.src='bastone.js?v=63';
       sb.onload=()=>{Bastone.init();window.__bsLoading=false;doRenderSheets();};
       sb.onerror=()=>{window.__bsLoading=false;$('planMsg').textContent='Non riesco a caricare il bastone.';};
       document.head.appendChild(sb);

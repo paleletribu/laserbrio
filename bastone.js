@@ -83,7 +83,7 @@ function plan(AREA){
   return {parts:b.parts,sheets:b.sheets,hardware:HARDWARE,steps:window.BastoneGuida?BastoneGuida.testi(b):['Sto caricando le istruzioni…']};}
 
 /* ---------- pagina del progetto ---------- */
-function loadJs(src){return new Promise((ok,ko)=>{const e=document.createElement('script');e.src=src;e.onload=ok;e.onerror=()=>ko(new Error(src));document.head.appendChild(e);});}
+function loadJs(src){return new Promise((ok,ko)=>{const e=document.createElement('script');e.src=src+'?v=63';e.onload=ok;e.onerror=()=>ko(new Error(src));document.head.appendChild(e);});}
 function init(){
   const box=$('staffBox');if(!box||box.dataset.ready)return;box.dataset.ready='1';
   box.innerHTML=
